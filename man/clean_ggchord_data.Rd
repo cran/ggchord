@@ -17,22 +17,33 @@ clean_ggchord_data(
 )
 }
 \arguments{
-\item{seq_data}{data.frame/tibble, required. Must contain \code{seq_id} and
-\code{length}; used as the coordinate reference for clipping.}
+\item{seq_data}{data.frame/tibble, required. Must contain \code{accver} and
+\code{length}; used as the coordinate reference for clipping. Reference
+IDs must always be non-missing, non-empty and unique, regardless of
+\code{unknown_id}.}
 
-\item{ribbon_data}{data.frame/tibble, optional. Alignment results.}
+\item{ribbon_data}{data.frame/tibble or \code{NULL}, optional. Alignment
+results. Other input types are rejected rather than treated as absent.}
 
-\item{gene_data}{data.frame/tibble, optional. Gene annotation data.}
+\item{gene_data}{data.frame/tibble or \code{NULL}, optional. Gene annotation
+data. Other input types are rejected rather than treated as absent.}
 
 \item{unknown_id}{Character, default \code{"drop"}. Policy for rows whose
-sequence ID is missing, empty or unknown: \code{"drop"} removes them,
-\code{"error"} stops with a message, \code{"keep"} leaves them unchanged.}
+sequence ID in \code{ribbon_data} or \code{gene_data} is missing, empty or
+unknown: \code{"drop"} removes them,
+\code{"error"} stops with a message, \code{"keep"} leaves them unchanged.
+A kept row without a reference sequence is reported, but its coordinates
+and annotations are not cleaned and it is not guaranteed to be drawable.
+IDs are never guessed or replaced. Other structural checks, including
+finite numeric coordinates and valid gene strands, still apply.}
 
 \item{out_of_range}{Character, default \code{"clip"}. Policy for coordinates
 outside \code{[1, sequence length]}: \code{"clip"} clamps them,
 \code{"drop"} removes the row, \code{"error"} stops, \code{"keep"} leaves
-them unchanged. After clipping, intervals that become invalid (degenerate)
-are removed explicitly and reported.}
+them unchanged. Coordinates are one-based inclusive, so \code{start == end}
+is a valid single-base interval and is retained. With \code{"clip"}, intervals
+wholly outside their sequence are removed and reported; partially
+overlapping intervals retain their intersection, even a single base.}
 
 \item{reversed_interval}{Character, default \code{"sort"}. Policy for
 intervals with \code{start > end}: \code{"sort"} swaps the endpoints so
@@ -55,10 +66,10 @@ Replacement annotation used when \code{empty_annotation = "replace"}.}
 }
 \value{
 A list with four components: \code{seq_data}, \code{ribbon_data},
-  \code{gene_data} (cleaned copies) and \code{report} (a data.frame with
-  columns \code{table}, \code{row} (original row number), \code{column},
-  \code{reason}, \code{original_value}, \code{new_value} and
-  \code{action}).
+\code{gene_data} (cleaned copies) and \code{report} (a data.frame with
+columns \code{table}, \code{row} (original row number), \code{column},
+\code{reason}, \code{original_value}, \code{new_value} and
+\code{action}).
 }
 \description{
 Applies a conservative, predictable set of cleaning policies to the three
@@ -66,26 +77,26 @@ ggchord tables and returns the cleaned copies plus a full report. The
 original data frames are never modified. Nothing is dropped silently: every
 change (including every dropped row) is recorded in \code{report} with the
 original row number, the reason, the original value(s) and the new value(s).
+Its historical sorting default differs deliberately from preparation's
+direction-preserving default. Use \code{reversed_interval = "keep"} for
+directional links and circular-origin features; sorting endpoints loses
+information that a later workflow cannot reconstruct.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
+seqs <- seq_data_example |>
+  select(accver, length)
 data(ribbon_data_example)
-data(gene_data_example)
-
-# Introduce a few typical problems
-bad_r <- transform(ribbon_data_example,
-                   qstart = pmin(qstart, 1),
-                   pident = pmin(pident, 150))
-bad_g <- transform(gene_data_example,
-                   anno = ifelse(seq_len(nrow(gene_data_example)) == 1,
-                                 NA_character_, anno))
-
-out <- clean_ggchord_data(seq_data_example, bad_r, bad_g)
-head(out$report)
-# The cleaned tables are ready for ggchord()
-\donttest{
-p <- ggchord(out$seq_data, out$ribbon_data, out$gene_data) +
-  geom_seq() + geom_ribbon() + geom_gene()
+links <- ribbon_data_example |>
+  select(qaccver, saccver, qstart, qend, sstart, send, pident, length)
+# Deliberate diagnostic error in a copy; source observations remain unchanged.
+problem <- links |>
+  slice_head(n = 2) |>
+  mutate(qaccver = replace(qaccver, 2, "absent"))
+cleaned <- clean_ggchord_data(seqs, problem, unknown_id = "drop")
+cleaned$report
 }
+\seealso{
+\code{\link{ggchord_data_contract}}
 }

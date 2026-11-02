@@ -12,19 +12,34 @@
 #' original data frames are never modified. Nothing is dropped silently: every
 #' change (including every dropped row) is recorded in \code{report} with the
 #' original row number, the reason, the original value(s) and the new value(s).
+#' Its historical sorting default differs deliberately from preparation's
+#' direction-preserving default. Use \code{reversed_interval = "keep"} for
+#' directional links and circular-origin features; sorting endpoints loses
+#' information that a later workflow cannot reconstruct.
 #'
-#' @param seq_data data.frame/tibble, required. Must contain \code{seq_id} and
-#'   \code{length}; used as the coordinate reference for clipping.
-#' @param ribbon_data data.frame/tibble, optional. Alignment results.
-#' @param gene_data data.frame/tibble, optional. Gene annotation data.
+#' @param seq_data data.frame/tibble, required. Must contain \code{accver} and
+#'   \code{length}; used as the coordinate reference for clipping. Reference
+#'   IDs must always be non-missing, non-empty and unique, regardless of
+#'   \code{unknown_id}.
+#' @param ribbon_data data.frame/tibble or \code{NULL}, optional. Alignment
+#'   results. Other input types are rejected rather than treated as absent.
+#' @param gene_data data.frame/tibble or \code{NULL}, optional. Gene annotation
+#'   data. Other input types are rejected rather than treated as absent.
 #' @param unknown_id Character, default \code{"drop"}. Policy for rows whose
-#'   sequence ID is missing, empty or unknown: \code{"drop"} removes them,
+#'   sequence ID in \code{ribbon_data} or \code{gene_data} is missing, empty or
+#'   unknown: \code{"drop"} removes them,
 #'   \code{"error"} stops with a message, \code{"keep"} leaves them unchanged.
+#'   A kept row without a reference sequence is reported, but its coordinates
+#'   and annotations are not cleaned and it is not guaranteed to be drawable.
+#'   IDs are never guessed or replaced. Other structural checks, including
+#'   finite numeric coordinates and valid gene strands, still apply.
 #' @param out_of_range Character, default \code{"clip"}. Policy for coordinates
 #'   outside \code{[1, sequence length]}: \code{"clip"} clamps them,
 #'   \code{"drop"} removes the row, \code{"error"} stops, \code{"keep"} leaves
-#'   them unchanged. After clipping, intervals that become invalid (degenerate)
-#'   are removed explicitly and reported.
+#'   them unchanged. Coordinates are one-based inclusive, so \code{start == end}
+#'   is a valid single-base interval and is retained. With \code{"clip"}, intervals
+#'   wholly outside their sequence are removed and reported; partially
+#'   overlapping intervals retain their intersection, even a single base.
 #' @param reversed_interval Character, default \code{"sort"}. Policy for
 #'   intervals with \code{start > end}: \code{"sort"} swaps the endpoints so
 #'   the feature draws stably (the original direction is recorded in the
@@ -46,29 +61,23 @@
 #'   columns \code{table}, \code{row} (original row number), \code{column},
 #'   \code{reason}, \code{original_value}, \code{new_value} and
 #'   \code{action}).
+#' @seealso \code{\link{ggchord_data_contract}}
 #' @export
 #'
 #' @examples
-#' library(ggchord)
+#' library(dplyr)
 #' data(seq_data_example)
+#' seqs <- seq_data_example |>
+#'   select(accver, length)
 #' data(ribbon_data_example)
-#' data(gene_data_example)
-#'
-#' # Introduce a few typical problems
-#' bad_r <- transform(ribbon_data_example,
-#'                    qstart = pmin(qstart, 1),
-#'                    pident = pmin(pident, 150))
-#' bad_g <- transform(gene_data_example,
-#'                    anno = ifelse(seq_len(nrow(gene_data_example)) == 1,
-#'                                  NA_character_, anno))
-#'
-#' out <- clean_ggchord_data(seq_data_example, bad_r, bad_g)
-#' head(out$report)
-#' # The cleaned tables are ready for ggchord()
-#' \donttest{
-#' p <- ggchord(out$seq_data, out$ribbon_data, out$gene_data) +
-#'   geom_seq() + geom_ribbon() + geom_gene()
-#' }
+#' links <- ribbon_data_example |>
+#'   select(qaccver, saccver, qstart, qend, sstart, send, pident, length)
+#' # Deliberate diagnostic error in a copy; source observations remain unchanged.
+#' problem <- links |>
+#'   slice_head(n = 2) |>
+#'   mutate(qaccver = replace(qaccver, 2, "absent"))
+#' cleaned <- clean_ggchord_data(seqs, problem, unknown_id = "drop")
+#' cleaned$report
 clean_ggchord_data <- function(
     seq_data,
     ribbon_data = NULL,
@@ -79,6 +88,9 @@ clean_ggchord_data <- function(
     invalid_pident = c("clip", "drop", "error", "keep"),
     empty_annotation = c("keep", "drop", "replace"),
     replacement_annotation = "unannotated") {
+  seq_data <- ggchord_normalize_accver(seq_data)
+  gene_data <- ggchord_normalize_accver(gene_data)
+
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
@@ -100,13 +112,13 @@ clean_ggchord_data <- function(
     ggchord_stop("clean_ggchord_data(): seq_data must be a non-empty data.frame",
          call. = FALSE)
   }
-  if (!all(c("seq_id", "length") %in% colnames(seq_data))) {
-    ggchord_stop("clean_ggchord_data(): seq_data must contain the columns seq_id and length",
+  if (!all(c("accver", "length") %in% colnames(seq_data))) {
+    ggchord_stop("clean_ggchord_data(): seq_data must contain the columns accver and length",
          call. = FALSE)
   }
-  if (anyNA(seq_data$seq_id) || any(!nzchar(as.character(seq_data$seq_id))) ||
-      anyDuplicated(seq_data$seq_id)) {
-    ggchord_stop("clean_ggchord_data(): seq_data$seq_id must be non-missing, non-empty and unique",
+  if (anyNA(seq_data$accver) || any(!nzchar(as.character(seq_data$accver))) ||
+      anyDuplicated(seq_data$accver)) {
+    ggchord_stop("clean_ggchord_data(): seq_data$accver must be non-missing, non-empty and unique",
          call. = FALSE)
   }
   if (!is.numeric(seq_data$length) || any(!is.finite(seq_data$length)) ||
@@ -114,12 +126,12 @@ clean_ggchord_data <- function(
     ggchord_stop("clean_ggchord_data(): seq_data$length must contain finite positive numbers",
          call. = FALSE)
   }
-  seq_lens <- stats::setNames(seq_data$length, seq_data$seq_id)
+  seq_lens <- stats::setNames(seq_data$length, seq_data$accver)
 
   # Copies: the user's objects are never modified.
   seq_out <- seq_data
-  ribbon_out <- if (is.data.frame(ribbon_data)) ribbon_data else NULL
-  gene_out <- if (is.data.frame(gene_data)) gene_data else NULL
+  ribbon_out <- ribbon_data
+  gene_out <- gene_data
 
   report_rows <- list()
   report_chunk <- function(table, row, column, reason,
@@ -131,22 +143,27 @@ clean_ggchord_data <- function(
       stringsAsFactors = FALSE
     )
   }
+  describe_unknown_ids <- function(ids, missing_id) {
+    labels <- ids
+    labels[missing_id] <- "<NA>"
+    labels[!missing_id & !nzchar(ids)] <- "<empty>"
+    paste(unique(labels), collapse = ", ")
+  }
 
   # -------------------------------------------------------------------------
   # ribbon_data
   # -------------------------------------------------------------------------
   if (!is.null(ribbon_out)) {
     if (!is.data.frame(ribbon_out)) {
-      ggchord_stop("clean_ggchord_data(): ribbon_data must be a data.frame", call. = FALSE)
+      ggchord_stop("clean_ggchord_data(): ribbon_data must be a data.frame or NULL", call. = FALSE)
     }
-    req <- c("qaccver", "saccver", "length", "pident",
-             "qstart", "qend", "sstart", "send")
+    req <- ggchord_ribbon_required_columns()
     missing <- setdiff(req, colnames(ribbon_out))
     if (length(missing) > 0) {
       ggchord_stop("clean_ggchord_data(): ribbon_data is missing required column(s): ",
            paste(missing, collapse = ", "), call. = FALSE)
     }
-    num_cols <- c("length", "pident", "qstart", "qend", "sstart", "send")
+    num_cols <- intersect(c("length", "pident", "qstart", "qend", "sstart", "send"), names(ribbon_out))
     for (nm in num_cols) {
       if (!is.numeric(ribbon_out[[nm]])) {
         ggchord_stop("clean_ggchord_data(): ribbon_data$", nm, " must be numeric",
@@ -162,27 +179,23 @@ clean_ggchord_data <- function(
       ggchord_stop("clean_ggchord_data(): ribbon_data$length must be positive",
            call. = FALSE)
     }
-    if (anyNA(ribbon_out$qaccver) || anyNA(ribbon_out$saccver) ||
-        any(!nzchar(as.character(ribbon_out$qaccver))) ||
-        any(!nzchar(as.character(ribbon_out$saccver)))) {
-      ggchord_stop("clean_ggchord_data(): ribbon_data sequence IDs must be non-missing and non-empty",
-           call. = FALSE)
-    }
-
     drop <- rep(FALSE, nrow(ribbon_out))
     n <- nrow(ribbon_out)
+    input_direction <- ggchord_ribbon_direction(ribbon_out)
 
     for (colname in c("qaccver", "saccver")) {
-      id <- as.character(ribbon_out[[colname]])
-      bad <- !id %in% names(seq_lens)
+      raw_id <- ribbon_out[[colname]]
+      id <- as.character(raw_id)
+      missing_id <- is.na(raw_id) | is.na(id)
+      bad <- missing_id | !nzchar(id) | !id %in% names(seq_lens)
       if (any(bad)) {
         rows <- which(bad)
         if (unknown_id == "error") {
-          ggchord_stop(sprintf(paste0("clean_ggchord_data(): unknown sequence ID(s) in ",
+          ggchord_stop(sprintf(paste0("clean_ggchord_data(): missing, empty or unknown sequence ID(s) in ",
                               "ribbon_data row(s) %s (column %s): %s; choose ",
                               "unknown_id = 'drop' or 'keep'"),
                        paste(rows, collapse = ", "), colname,
-                       paste(unique(id[bad]), collapse = ", ")), call. = FALSE)
+                       describe_unknown_ids(id[bad], missing_id[bad])), call. = FALSE)
         } else if (unknown_id == "drop") {
           drop[bad] <- TRUE
           report_chunk("ribbon", rows, colname, "unknown sequence ID",
@@ -194,12 +207,13 @@ clean_ggchord_data <- function(
       }
     }
 
-    # Coordinate out-of-range / reversed / degenerate handling, row by row.
+    # Coordinate out-of-range and reversed handling, row by row.
     for (i in which(!drop)) {
       row <- ribbon_out[i, ]
       qid <- as.character(row$qaccver)
       sid_ <- as.character(row$saccver)
-      if (!qid %in% names(seq_lens) || !sid_ %in% names(seq_lens)) {
+      if (anyNA(row$qaccver) || anyNA(row$saccver) ||
+          !qid %in% names(seq_lens) || !sid_ %in% names(seq_lens)) {
         # unknown IDs were kept by policy; their coordinates cannot be
         # validated or clipped against a sequence length, so leave the row
         # untouched (it was already reported under unknown_id = 'keep').
@@ -208,6 +222,20 @@ clean_ggchord_data <- function(
       coords <- c(qstart = row$qstart, qend = row$qend,
                   sstart = row$sstart, send = row$send)
       idof <- c(qstart = qid, qend = qid, sstart = sid_, send = sid_)
+      # Clamping two outside endpoints to the same boundary must not invent
+      # a single-base hit where the original interval had no overlap.
+      if (out_of_range == "clip" &&
+          (max(coords[c("qstart", "qend")]) < 1 ||
+           min(coords[c("qstart", "qend")]) > seq_lens[[qid]] ||
+           max(coords[c("sstart", "send")]) < 1 ||
+           min(coords[c("sstart", "send")]) > seq_lens[[sid_]])) {
+        drop[i] <- TRUE
+        report_chunk("ribbon", i, "qstart/qend/sstart/send",
+                     "query or subject interval has no overlap with its sequence",
+                     paste(sprintf("%s=%s", names(coords), coords), collapse = ", "),
+                     NA_character_, "drop")
+        next
+      }
       new_coords <- coords
       clipped <- FALSE
       for (nm in names(coords)) {
@@ -246,6 +274,16 @@ clean_ggchord_data <- function(
       }
       coords <- new_coords
 
+      # Preserve the relationship between query and subject directions before
+      # sorting endpoints. Sorting must not silently turn a reverse alignment
+      # into a same-direction alignment.
+      direction <- if (input_direction[i] == "same") "same" else
+        if (input_direction[i] == "opposite") "reverse" else NA_character_
+      if (!"direction" %in% names(ribbon_out)) {
+        ribbon_out$direction <- NA_character_
+      }
+      ribbon_out[i, "direction"] <- direction
+
       # Reversed intervals
       if (coords[["qstart"]] > coords[["qend"]] ||
           coords[["sstart"]] > coords[["send"]]) {
@@ -263,13 +301,7 @@ clean_ggchord_data <- function(
                        NA_character_, "drop")
           next
         } else if (reversed_interval == "sort") {
-          report_chunk("ribbon", i, "qstart/qend/sstart/send",
-                       "reversed interval sorted (original direction recorded)",
-                       paste(sprintf("%s=%s", names(coords), coords),
-                             collapse = ", "),
-                       paste(sprintf("%s=%s", names(coords), coords),
-                             collapse = ", "),
-                       "sort")
+          original_coords <- coords
           if (coords[["qstart"]] > coords[["qend"]]) {
             tmp <- coords[["qstart"]]; coords[["qstart"]] <- coords[["qend"]]
             coords[["qend"]] <- tmp
@@ -278,6 +310,13 @@ clean_ggchord_data <- function(
             tmp <- coords[["sstart"]]; coords[["sstart"]] <- coords[["send"]]
             coords[["send"]] <- tmp
           }
+          report_chunk("ribbon", i, "qstart/qend/sstart/send",
+                       "reversed interval sorted (original direction recorded)",
+                       paste(sprintf("%s=%s", names(original_coords), original_coords),
+                             collapse = ", "),
+                       paste(sprintf("%s=%s", names(coords), coords),
+                             collapse = ", "),
+                       "sort")
         } else {
           report_chunk("ribbon", i, "qstart/qend/sstart/send",
                        "reversed interval (kept)",
@@ -289,21 +328,9 @@ clean_ggchord_data <- function(
         }
       }
 
-      # Degenerate interval after clipping (cannot be drawn meaningfully).
-      if (coords[["qstart"]] == coords[["qend"]] ||
-          coords[["sstart"]] == coords[["send"]]) {
-        drop[i] <- TRUE
-        report_chunk("ribbon", i, "qstart/qend/sstart/send",
-                     "degenerate (zero-length) interval after clipping",
-                     paste(sprintf("%s=%s", names(coords), coords),
-                           collapse = ", "),
-                     NA_character_, "drop")
-        next
-      }
-
       # pident
       p <- row$pident
-      if (p < 0 || p > 100) {
+      if (length(p) && (p < 0 || p > 100)) {
         if (invalid_pident == "error") {
           ggchord_stop(sprintf("clean_ggchord_data(): ribbon_data$pident row %d is %s; choose invalid_pident = 'clip', 'drop' or 'keep'",
                        i, p), call. = FALSE)
@@ -325,7 +352,7 @@ clean_ggchord_data <- function(
 
       # write back
       for (nm in names(coords)) ribbon_out[i, nm] <- coords[[nm]]
-      ribbon_out[i, "pident"] <- p
+      if (length(p)) ribbon_out[i, "pident"] <- p
     }
 
     ribbon_out <- ribbon_out[!drop, , drop = FALSE]
@@ -336,9 +363,9 @@ clean_ggchord_data <- function(
   # -------------------------------------------------------------------------
   if (!is.null(gene_out)) {
     if (!is.data.frame(gene_out)) {
-      ggchord_stop("clean_ggchord_data(): gene_data must be a data.frame", call. = FALSE)
+      ggchord_stop("clean_ggchord_data(): gene_data must be a data.frame or NULL", call. = FALSE)
     }
-    req <- c("seq_id", "start", "end", "strand", "anno")
+    req <- c("accver", "start", "end", "strand")
     missing <- setdiff(req, colnames(gene_out))
     if (length(missing) > 0) {
       ggchord_stop("clean_ggchord_data(): gene_data is missing required column(s): ",
@@ -353,41 +380,51 @@ clean_ggchord_data <- function(
       ggchord_stop("clean_ggchord_data(): gene_data$strand can only be '+' or '-'",
            call. = FALSE)
     }
-    if (anyNA(gene_out$seq_id) || any(!nzchar(as.character(gene_out$seq_id)))) {
-      ggchord_stop("clean_ggchord_data(): gene_data$seq_id must be non-missing and non-empty",
-           call. = FALSE)
-    }
-
     drop <- rep(FALSE, nrow(gene_out))
     n <- nrow(gene_out)
 
-    id <- as.character(gene_out$seq_id)
-    bad <- !id %in% names(seq_lens)
+    raw_id <- gene_out$accver
+    id <- as.character(raw_id)
+    missing_id <- is.na(raw_id) | is.na(id)
+    bad <- missing_id | !nzchar(id) | !id %in% names(seq_lens)
     if (any(bad)) {
       rows <- which(bad)
       if (unknown_id == "error") {
-        ggchord_stop(sprintf(paste0("clean_ggchord_data(): unknown sequence ID(s) in ",
-                            "gene_data row(s) %s (column seq_id): %s; choose ",
+        ggchord_stop(sprintf(paste0("clean_ggchord_data(): missing, empty or unknown sequence ID(s) in ",
+                            "gene_data row(s) %s (column accver): %s; choose ",
                             "unknown_id = 'drop' or 'keep'"),
                      paste(rows, collapse = ", "),
-                     paste(unique(id[bad]), collapse = ", ")), call. = FALSE)
+                     describe_unknown_ids(id[bad], missing_id[bad])), call. = FALSE)
       } else if (unknown_id == "drop") {
         drop[bad] <- TRUE
-        report_chunk("gene", rows, "seq_id", "unknown sequence ID",
+        report_chunk("gene", rows, "accver", "unknown sequence ID",
                      id[bad], NA_character_, "drop")
       } else {
-        report_chunk("gene", rows, "seq_id", "unknown sequence ID (kept)",
+        report_chunk("gene", rows, "accver", "unknown sequence ID (kept)",
                      id[bad], id[bad], "keep")
       }
     }
 
     for (i in which(!drop)) {
       row <- gene_out[i, ]
-      sid_ <- as.character(row$seq_id)
+      sid_ <- as.character(row$accver)
+      if (anyNA(row$accver) || !sid_ %in% names(seq_lens)) {
+        # unknown_id = "keep": without a reference length there is no safe
+        # coordinate operation to perform. The row was already reported.
+        next
+      }
       len <- seq_lens[[sid_]]
       st <- row$start
       en <- row$end
       changed <- FALSE
+
+      if (out_of_range == "clip" && (max(st, en) < 1 || min(st, en) > len)) {
+        drop[i] <- TRUE
+        report_chunk("gene", i, "start/end",
+                     "interval has no overlap with its sequence",
+                     sprintf("start=%s, end=%s", st, en), NA_character_, "drop")
+        next
+      }
 
       if (st < 1 || st > len) {
         if (out_of_range == "error") {
@@ -453,16 +490,8 @@ clean_ggchord_data <- function(
                        sprintf("start=%s, end=%s", st, en), "keep")
         }
       }
-      if (st == en) {
-        drop[i] <- TRUE
-        report_chunk("gene", i, "start/end",
-                     "degenerate (zero-length) feature after clipping",
-                     sprintf("start=%s, end=%s", st, en), NA_character_, "drop")
-        next
-      }
-
       anno <- as.character(row$anno)
-      if (is.na(anno) || !nzchar(anno)) {
+      if (length(anno) && (is.na(anno) || !nzchar(anno))) {
         if (empty_annotation == "drop") {
           drop[i] <- TRUE
           report_chunk("gene", i, "anno", "missing or empty annotation",
@@ -485,7 +514,7 @@ clean_ggchord_data <- function(
       if (changed) {
         gene_out[i, "start"] <- st
         gene_out[i, "end"] <- en
-        gene_out[i, "anno"] <- anno
+        if (length(anno)) gene_out[i, "anno"] <- anno
       }
     }
 
@@ -519,6 +548,7 @@ clean_ggchord_data <- function(
 #' @param x A \code{"ggchord_clean"} object.
 #' @param ... Ignored.
 #' @return The object invisibly.
+#' @seealso \code{\link{ggchord_data_contract}}
 #' @export
 print.ggchord_clean <- function(x, ...) {
   old_error <- ggchord_disable_debug()

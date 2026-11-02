@@ -59,23 +59,25 @@ with \code{"-"} or \code{"desc:"} for descending order (e.g.
 }
 \value{
 A list with \code{data} (the filtered data frame, with
-  \code{source_rows} attribute) and \code{report} (n_input/n_kept/n_removed,
-  removed_by_reason, removed_rows and kept_rows).
+\code{source_rows} attribute) and \code{report} (n_input/n_kept/n_removed,
+removed_by_reason, removed_rows and kept_rows).
 }
 \description{
 Keeps the ribbon rows that satisfy all requested criteria and optionally
 sorts them. The returned data frame keeps every extra column and the
 original column order; the original row numbers are attached as the
 \code{source_rows} attribute.
+Each non-NULL numeric threshold must be one finite number. Columns used by
+a numeric criterion must be numeric; missing values fail that criterion.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(ribbon_data_example)
-out <- filter_ggchord_ribbons(
-  ribbon_data_example,
-  min_pident = 95,
-  drop_self_links = TRUE,
-  sort_by = c("pident", "-length")
-)
+links <- ribbon_data_example |>
+  select(qaccver, saccver, qstart, qend, sstart, send, pident, length)
+out <- filter_ggchord_ribbons(links, min_pident = 95, min_length = 500)
 out$report
+}
+\seealso{
+\code{\link{ggchord_data_contract}}
 }

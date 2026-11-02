@@ -7,13 +7,14 @@
 geom_gene(
   mapping = NULL,
   data = NULL,
-  gene_offset = NULL,
-  gene_width = NULL,
-  gene_color_scheme = NULL,
-  gene_colors = NULL,
-  gene_order = NULL,
-  show_legend = TRUE,
-  legend_position = "right",
+  width = NULL,
+  arrow_head_length = 0.04,
+  arrow_head_width = 1,
+  arrow_head_style = c("shouldered", "flush", "triangle"),
+  short_feature = c("auto", "wedge", "block"),
+  position = "identity",
+  show.legend = TRUE,
+  inherit.aes = FALSE,
   ...
 )
 }
@@ -22,40 +23,46 @@ geom_gene(
 
 \item{data}{Default NULL (retrieved automatically from the layout)}
 
-\item{gene_offset}{Optional numeric/vector/list. Radial offset of gene arrows, default 0.1}
+\item{width}{Optional numeric/vector/list. Width of gene arrows, default 0.05}
 
-\item{gene_width}{Optional numeric/vector/list. Width of gene arrows, default 0.05}
+\item{arrow_head_length, arrow_head_width}{Shared arrow-head dimensions in
+the sequence-local frame.}
 
-\item{gene_color_scheme}{Character. "strand" or "manual", default "strand"}
+\item{arrow_head_style}{Arrowhead construction: shouldered, flush, or a
+full triangular wedge.}
 
-\item{gene_colors}{Optional color vector. Fill color of gene arrows}
+\item{short_feature}{Fallback for arrows too short to hold their requested
+head: automatic wedge/block selection, a wedge, or a block.}
 
-\item{gene_order}{Optional character vector. Display order of genes in the legend}
+\item{position}{Feature placement. Use \code{"identity"}, \code{"strand"},
+\code{"plasmid"}, \code{\link[=position_strand]{position_strand()}}, \code{\link[=position_plasmid]{position_plasmid()}}, or
+\code{\link[=position_feature_stack]{position_feature_stack()}}.}
 
-\item{show_legend}{Whether to show the legend, default TRUE}
-
-\item{legend_position}{Position of this layer's legend (the Strand or Gene
-Annotation legend): one of "left", "right", "top", "bottom" or "inside",
-default "right". Pass NULL to let the legend follow
-\code{theme(legend.position = ...)} together with the other legends.}
+\item{show.legend, inherit.aes}{Standard ggplot2 layer arguments.}
 
 \item{...}{Additional arguments passed to \code{geom_polygon()}}
 }
 \value{
-A list of ggplot2 layers. To annotate the genes with their labels,
-  add a \code{\link{geom_gene_label}()} layer.
+A ggplot2 layer. To annotate the genes with their labels,
+add a \code{\link{geom_gene_label}()} layer.
 }
 \description{
-Draws gene annotation arrows on the chord diagram. Gene layout parameters
-(offset, width, color scheme, etc.) are specified here.
+A directed-gene shortcut using the generic \code{\link{geom_feature}()}
+constructor with arrow geometry and the independent \code{gene_fill} role.
+Gene input still requires a known \code{+} or \code{-} strand; use
+\code{\link{geom_feature}()} for unknown strands.
 The gene fill scale is kept independent from the ribbon's fill scale via a
 separate internal aesthetic used by the ribbon layer.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
+seqs <- seq_data_example |>
+  select(accver, length)
 data(gene_data_example)
-p <- ggchord(seq_data_example, gene_data = gene_data_example) +
-  geom_seq() + geom_gene()
-p
+genes <- gene_data_example |>
+  transmute(accver, start, end, strand = source_strand)
+ggchord(seq_data = seqs, gene_data = genes) +
+  geom_seq() +
+  geom_gene()
 }

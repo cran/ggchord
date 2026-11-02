@@ -18,7 +18,7 @@
 #' @param default_value Default value when param is NULL, default NULL
 #' @param allow_null Logical, whether to allow param to be NULL, default FALSE
 #' @return Named vector (names are seq_ids), standardized parameter values
-#' @keywords internal
+#' @noRd
 process_sequence_param <- function(param, seqs, param_name, default_value = NULL, allow_null = FALSE) {
   n <- length(seqs)
 
@@ -163,8 +163,8 @@ process_sequence_param <- function(param, seqs, param_name, default_value = NULL
 #' @param param_name Character, name of the parameter (used in error messages)
 #' @param default_value Default value when param is NULL
 #' @param is_logical Logical, whether the parameter is logical (TRUE/FALSE), default FALSE
-#' @return List (named by seq_id), where each element is a vector with "+"/"-"
-#' @keywords internal
+#' @return List (named by accver), where each element is a vector with "+"/"-"
+#' @noRd
 process_gene_param <- function(param, seqs, param_name, default_value, is_logical = FALSE) {
   n <- length(seqs)
   result <- setNames(lapply(seqs, function(id) {
@@ -316,9 +316,9 @@ process_gene_param <- function(param, seqs, param_name, default_value, is_logica
 #'   numeric (angle), vector (length matches number of sequences), or named
 #'   vector, label orientation parameter
 #' @param seqs Character vector, list of sequence IDs
-#' @return Named vector (names are seq_id), values are "horizontal",
+#' @return Named vector (names are accver), values are "horizontal",
 #'   "parallel", "perpendicular" or numeric angles
-#' @keywords internal
+#' @noRd
 process_axis_orientation <- function(param, seqs) {
   n <- length(seqs)
 
@@ -343,13 +343,13 @@ process_axis_orientation <- function(param, seqs) {
 
     for (i in seq_along(param)) {
       val <- param[i]
-      seq_id <- seqs[i]
+      accver <- seqs[i]
 
       num_val <- suppressWarnings(as.numeric(val))
       if (is_keyword(val)) {
-        result[seq_id] <- tolower(val)
+        result[accver] <- tolower(val)
       } else if (is.numeric(val) || (!is.na(num_val) && num_val == val)) {
-        result[seq_id] <- as.character(num_val)
+        result[accver] <- as.character(num_val)
       } else {
         ggchord_stop(paste("Element", i, "of axis_label_orientation has incorrect format; must be numeric, 'horizontal', 'parallel' or 'perpendicular'"))
       }
@@ -388,11 +388,11 @@ process_axis_orientation <- function(param, seqs) {
 #' Standardizes gene color parameters in strand mode (color by strand direction) into a named vector with "+"/"-"
 #'
 #' @param gene_colors Color vector (can be NULL, single value, vector of length 2, named vector with "+"/"-")
-#' @return Named vector (names are "+"/"-"), standardized color values (default "+" is red, "-" is blue)
-#' @keywords internal
+#' @return Named vector (names are "+"/"-"), standardized colour values
+#' @noRd
 process_strand_colors <- function(gene_colors) {
   # Default values
-  default <- c("+" = "#E41A1C", "-" = "#377EB8")
+  default <- c("+" = "#D55E00", "-" = "#0072B2")
   if (is.null(gene_colors)) {
     return(default)
   }
@@ -424,8 +424,8 @@ process_strand_colors <- function(gene_colors) {
 #' @param gene_colors Color vector (can be NULL, single value, vector, named vector with gene annotations)
 #' @param unique_anno Character vector, unique gene annotation names
 #' @param gene_order Character vector, display order of genes in the legend, default NULL (order of appearance)
-#' @return Named vector (names are gene annotations), standardized color values (default uses the built-in Set1 palette)
-#' @keywords internal
+#' @return Named vector (names are gene annotations), standardized colour values
+#' @noRd
 process_manual_colors <- function(gene_colors, unique_anno, gene_order) {
   # Determine final gene order
   if (!is.null(gene_order)) {
@@ -478,75 +478,4 @@ process_manual_colors <- function(gene_colors, unique_anno, gene_order) {
     names(res) <- final_order
     return(res)
   }
-}
-
-# ---------------------------------------------------------------------------
-# Sequence grouping helper (v0.8.0)
-# ---------------------------------------------------------------------------
-
-#' Resolve a seq_group specification into a named character vector
-#'
-#' @param seq_data data.frame containing at least `seq_id` and, optionally,
-#'   a `seq_group` column.
-#' @param seqs Character vector of sequence IDs in drawing order.
-#' @param seq_group NULL, a column name in `seq_data`, or a parameter accepted
-#'   by [process_sequence_param()] (single value, named vector, unnamed vector
-#'   matching the sequences, or a list).
-#' @return A named character vector with one element per sequence (names are
-#'   sequence IDs), or NULL when grouping is disabled.
-#' @keywords internal
-resolve_ggchord_seq_group <- function(seq_data, seqs, seq_group) {
-  if (is.null(seq_group)) {
-    if (is.data.frame(seq_data) && "seq_group" %in% colnames(seq_data)) {
-      seq_group <- stats::setNames(as.character(seq_data$seq_group),
-                                   as.character(seq_data$seq_id))
-      seq_group <- seq_group[seqs]
-      return(seq_group)
-    }
-    return(NULL)
-  }
-
-  # A single unnamed string is treated as a column name when that column
-  # exists in seq_data; otherwise it is a group label recycled to every
-  # sequence (which is rarely useful but is a valid process_sequence_param()
-  # input).
-  if (length(seq_group) == 1 && is.character(seq_group) &&
-      is.null(names(seq_group)) && !is.list(seq_group) &&
-      is.data.frame(seq_data) && seq_group %in% colnames(seq_data)) {
-    seq_group <- stats::setNames(as.character(seq_data[[seq_group]]),
-                                 as.character(seq_data$seq_id))
-    seq_group <- seq_group[seqs]
-    return(seq_group)
-  }
-
-  out <- process_sequence_param(seq_group, seqs, "seq_group", allow_null = TRUE)
-  if (is.null(out)) return(NULL)
-  as.character(out)
-}
-
-#' Normalise a named vector of group colours
-#'
-#' @param colors Named vector, or NULL. When NULL a default grey is used later.
-#' @param groups Character vector of group names in display order.
-#' @return Named character vector with names equal to `groups`; unnamed colour
-#'   vectors are recycled positionally.
-#' @keywords internal
-resolve_ggchord_group_colors <- function(colors, groups) {
-  if (is.null(colors)) return(NULL)
-  if (is.null(names(colors))) {
-    if (length(colors) == 1) colors <- setNames(rep(colors, length(groups)), groups)
-    else if (length(colors) == length(groups)) colors <- setNames(as.character(colors), groups)
-    else ggchord_stop("seq_group_colors must be length 1 or match the number of groups")
-  } else {
-    unknown <- setdiff(names(colors), groups)
-    if (length(unknown) > 0) {
-      ggchord_stop("seq_group_colors contains unknown group name(s): ",
-                   paste(unknown, collapse = ", "))
-    }
-    out <- rep("grey20", length(groups))
-    names(out) <- groups
-    out[names(colors)] <- as.character(colors)
-    colors <- out
-  }
-  colors
 }

@@ -2,112 +2,190 @@
 # Fetches pre-computed sequence arc data from the package environment and renders it with geom_path
 # Sequence layout parameters are specified in this layer and stored for use at print time
 
-# ---------------------------------------------------------------------------
-# Internal geom used by the optional sequence-group label layer.  It exposes
-# text colour under an internal aesthetic name ("zcolour") so that the group
-# labels can have their own identity scale without colliding with the Seq ID
-# colour scale used by geom_seq().
-# ---------------------------------------------------------------------------
-rename_text_colour_geom <- function(geom = ggplot2::GeomText,
-                                    old_aes = "colour",
-                                    new_aes = "zcolour") {
-  new_geom <- ggplot2::ggproto(
-    paste0("GeomChord", sub("^Geom", "", class(geom)[1])), geom
-  )
-
-  aes_names <- names(new_geom$default_aes)
-  aes_names[aes_names == old_aes] <- new_aes
-  names(new_geom$default_aes) <- aes_names
-
-  old_handle_na <- geom$handle_na
-  new_geom$handle_na <- function(self, data, params) {
-    colnames(data)[colnames(data) == new_aes] <- old_aes
-    old_handle_na(data, params)
+GeomChordSeq <- ggplot2::ggproto(
+  "GeomChordSeq", ggplot2::Geom,
+  required_aes = c("x", "y"),
+  default_aes = ggplot2::aes(
+    seq_colour = "#3D4348", alpha = 1, linewidth = 0.9,
+    linetype = 1, .component = "path"
+  ),
+  draw_key = ggplot2::draw_key_path,
+  draw_panel = function(data, panel_params, coord, na.rm = FALSE,
+                        arrow = NULL) {
+    grobs <- list()
+    paths <- data[data$.component == "path", , drop = FALSE]
+    bands <- data[data$.component == "band", , drop = FALSE]
+    breaks <- data[data$.component == "break", , drop = FALSE]
+    if (nrow(paths)) {
+      paths$colour <- paths$seq_colour
+      grobs[[length(grobs) + 1L]] <- ggplot2::GeomPath$draw_panel(
+        paths, panel_params, coord, lineend = "round", arrow = arrow,
+        na.rm = na.rm
+      )
+    }
+    if (nrow(bands)) {
+      bands$colour <- bands$seq_colour
+      bands$fill <- bands$seq_colour
+      grobs[[length(grobs) + 1L]] <- ggplot2::GeomPolygon$draw_panel(
+        bands, panel_params, coord, na.rm = na.rm
+      )
+    }
+    if (nrow(breaks)) {
+      breaks$colour <- breaks$seq_colour
+      grobs[[length(grobs) + 1L]] <- ggplot2::GeomPath$draw_panel(
+        breaks, panel_params, coord, lineend = "butt", arrow = NULL,
+        na.rm = na.rm)
+    }
+    do.call(grid::grobTree, grobs)
   }
-  old_draw_key <- geom$draw_key
-  new_geom$draw_key <- function(data, params, size) {
-    colnames(data)[colnames(data) == new_aes] <- old_aes
-    old_draw_key(data, params, size)
+)
+
+ggchord_seq_style_geometry <- function(seq_arcs, params) {
+  style <- params$seq_style %||% "auto"
+  if (identical(style, "auto")) {
+    style <- if (isTRUE(params$circular)) "double" else "single"
   }
-  new_geom
+  gap <- params$seq_backbone_gap %||% 0.025
+  width <- params$seq_backbone_width %||% 0.035
+  pieces <- lapply(names(seq_arcs), function(id) {
+    arc <- seq_arcs[[id]]
+    n <- nrow(arc)
+    prev <- pmax(1L, seq_len(n) - 1L)
+    next_ <- pmin(n, seq_len(n) + 1L)
+    dx <- arc$x[next_] - arc$x[prev]
+    dy <- arc$y[next_] - arc$y[prev]
+    norm <- sqrt(dx^2 + dy^2)
+    norm[norm <= 1e-12] <- 1
+    nx <- -dy / norm; ny <- dx / norm
+    flip <- nx * arc$x + ny * arc$y < 0
+    nx[flip] <- -nx[flip]; ny[flip] <- -ny[flip]
+    shifted <- function(amount, group, component) {
+      out <- arc
+      out$x <- out$x + nx * amount
+      out$y <- out$y + ny * amount
+      out$group <- paste(id, group, sep = "\r")
+      out$.component <- component
+      out
+    }
+    switch(
+      style,
+      single = shifted(0, 1L, "path"),
+      double = rbind(
+        shifted(gap / 2, 1L, "path"),
+        shifted(-gap / 2, 2L, "path")
+      ),
+      band = {
+        outer <- shifted(width / 2, 1L, "band")
+        inner <- shifted(-width / 2, 1L, "band")
+        out <- rbind(outer, inner[nrow(inner):1L, , drop = FALSE])
+        out$group <- paste(id, "band", sep = "\r")
+        out
+      }
+    )
+  })
+  out <- do.call(rbind, pieces)
+  breaks <- params$segment_breaks
+  if (!is.null(breaks) && nrow(breaks)) out <- ggchord_rbind_fill(list(out, breaks))
+  out
 }
-
-seq_group_label_geom <- rename_text_colour_geom()
 
 #' Add a sequence arc layer
 #'
 #' Draws arcs (or straight lines, depending on the curvature setting) representing sequences in the chord diagram.
 #' Sequence layout parameters (order, orientation, radius, curvature, colors, etc.) are specified here.
-#' Sequences can be visually grouped with an extra inter-group gap and optional group labels.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
 #' @param data Default NULL (retrieved automatically from the layout)
 #' @param seq_order Optional character vector. Specifies the drawing order of sequences
-#' @param seq_labels Optional character vector or named vector. Sequence labels
 #' @param seq_orientation Optional numeric (1 or -1). Sequence orientation, default 1
-#' @param seq_gap Optional numeric. Gap proportion between sequences, default 0.03
+#' @param seq_gap Optional numeric. Gap proportion between sequences, default
+#'   0.03 in chord coordinates. In [coord_collinear()], a positive distance
+#'   between consecutive backbones as a proportion of the longest backbone's
+#'   width, default 0.3. The final sequence's gap is unused in linear layouts.
+#'   Segmented linear displays measure it against the longest display row;
+#'   windows in one row must request the same gap, and only gaps between rows
+#'   affect vertical placement.
 #' @param seq_radius Optional numeric (> 0). Sequence arc radius, default 1.0
-#' @param seq_curvature Optional numeric. Arc curvature (0=straight, 1=standard arc, >1=more curved), default 1.0
-#' @param seq_colors Optional color vector or named vector. Sequence colors
-#' @param seq_group Optional group specification. NULL disables grouping unless
-#'   \code{seq_data} contains a \code{seq_group} column; a single string naming
-#'   such a column uses that column; otherwise a single value, named vector,
-#'   unnamed vector matching the sequences, or a list (see
-#'   \code{process_sequence_param()}) is accepted.
-#' @param seq_group_gap Numeric, default 0.08. Extra gap proportion inserted
-#'   between consecutive groups (in addition to \code{seq_gap}).
-#' @param seq_group_labels Logical or character, default TRUE. When TRUE the
-#'   group names are drawn at the angular midpoint of each group; a named
-#'   character vector can be used to override the group label text.
-#' @param seq_group_label_radius Numeric, default 1.35. Radial position of the
-#'   group labels as a multiplier of the group's outermost sequence radius
-#'   (same convention as \code{seq_label_radius}: \code{1} on the arc,
-#'   \code{> 1} outside).
-#' @param seq_group_colors Optional named color vector by group name (or an
-#'   unnamed vector recycled positionally). Colours the group labels.
-#' @param linewidth Arc line width, default 1.2
-#' @param show_legend Whether to show the legend for this layer, default TRUE
-#' @param legend_position Position of this layer's legend (the Seq ID legend):
-#'   one of "left", "right", "top", "bottom" or "inside", default "right". Pass
-#'   NULL to let the legend follow \code{theme(legend.position = ...)} together
-#'   with the other legends. Can also be set with \code{theme(legend.position.seq = ...)}.
-#' @param ... Additional arguments passed to \code{geom_path()}
+#' @param seq_curvature Optional numeric. Signed arc bow (0=straight, 1=standard arc, negative=opposite bow), default 1.0. Finite positive and negative values are accepted without clipping; magnitudes above 1 amplify the bow.
+#' @param seq_style Backbone geometry. `"auto"` uses a double backbone in
+#'   [coord_circular()] and the historical single backbone in [coord_chord()].
+#' @param seq_backbone_gap Gap between double backbone lines.
+#' @param seq_backbone_width Width of a band backbone.
+#' @param linewidth Arc line width, default 0.9
+#' @param position,show.legend,inherit.aes Standard ggplot2 layer arguments.
+#' @param ... Additional fixed path aesthetics. `colour` (or `color`) sets
+#'   `seq_colour`. Explicit fixed values take precedence over matching mappings;
+#'   omit fixed arguments to retain mapped styles.
 #'
-#' @return A list of ggplot2 layers
+#' @return A ggplot2 layer.
 #' @export
 #'
 #' @examples
-#' library(ggchord)
+#' library(dplyr)
 #' data(seq_data_example)
-#' p <- ggchord(seq_data_example) + geom_seq()
-#' p
+#' seqs <- seq_data_example |>
+#'   select(accver, length)
+#' ggchord(seq_data = seqs) +
+#'   geom_seq()
 geom_seq <- function(mapping = NULL, data = NULL,
                      seq_order = NULL,
-                     seq_labels = NULL,
                      seq_orientation = NULL,
                      seq_gap = NULL,
                      seq_radius = NULL,
                      seq_curvature = NULL,
-                     seq_colors = NULL,
-                     seq_group = NULL,
-                     seq_group_gap = 0.08,
-                     seq_group_labels = TRUE,
-                     seq_group_label_radius = 1.35,
-                     seq_group_colors = NULL,
-                     linewidth = 1.2,
-                     show_legend = TRUE,
-                     legend_position = "right",
+                     seq_style = c("auto", "single", "double", "band"),
+                     seq_backbone_gap = 0.025,
+                     seq_backbone_width = 0.035,
+                     linewidth = 0.9,
+                     position = "identity",
+                     show.legend = TRUE,
+                     inherit.aes = FALSE,
                      ...) {
+  show_legend_supplied <- !missing(show.legend)
+  linewidth_default <- missing(linewidth)
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
-
-  if (!is.numeric(seq_group_gap) || length(seq_group_gap) != 1 ||
-      !is.finite(seq_group_gap) || seq_group_gap < 0) {
-    ggchord_stop("seq_group_gap must be a finite non-negative number")
+  dots <- list(...)
+  arrow_supplied <- "arrow" %in% names(dots)
+  seq_style <- match.arg(seq_style)
+  if (!is.numeric(seq_backbone_gap) || length(seq_backbone_gap) != 1L ||
+      !is.finite(seq_backbone_gap) || seq_backbone_gap < 0 ||
+      !is.numeric(seq_backbone_width) || length(seq_backbone_width) != 1L ||
+      !is.finite(seq_backbone_width) || seq_backbone_width <= 0) {
+    ggchord_stop("geom_seq(): backbone gap/width must be finite non-negative/positive numbers")
   }
-  if (!is.numeric(seq_group_label_radius) || length(seq_group_label_radius) != 1 ||
-      !is.finite(seq_group_label_radius)) {
-    ggchord_stop("seq_group_label_radius must be a finite number")
+  dots <- ggchord_colour_dots(dots, "geom_seq()")
+  if ("colour" %in% names(dots)) {
+    if ("seq_colour" %in% names(dots)) ggchord_stop(
+      "geom_seq(): supply only one of colour and seq_colour")
+    dots$seq_colour <- dots$colour
+    dots$colour <- NULL
+  }
+  ggchord_reject_retired(dots, "geom_seq()", c(
+    seq_labels = "geom_seq_label(labels = ...) or a label scale",
+    seq_colors = "scale_seq_colour_manual(values = ...)",
+    show_legend = "show.legend",
+    legend_position = "guides(seq_colour = guide_ggchord_legend(position = ...))"
+  ))
+  removed_group_args <- intersect(
+    names(dots),
+    c("seq_group", "seq_group_gap", "seq_group_labels",
+      "seq_group_label_radius", "seq_group_colors")
+  )
+  if (length(removed_group_args) > 0L) {
+    ggchord_stop(
+      "Sequence grouping was removed in v0.10.0; remove argument(s): ",
+      paste(removed_group_args, collapse = ", ")
+    )
+  }
+  removed_group_aes <- intersect(
+    names(mapping), c("seq_group", "group_colour")
+  )
+  if (length(removed_group_aes) > 0L) {
+    ggchord_stop(
+      "Sequence grouping was removed in v0.10.0; remove aesthetic(s): ",
+      paste(removed_group_aes, collapse = ", ")
+    )
   }
 
   # The layout is computed at build time (ggplot_build.ggchord). The
@@ -115,63 +193,48 @@ geom_seq <- function(mapping = NULL, data = NULL,
   # fully self-contained.
   lyr <- ggplot2::layer(
     data        = data.frame(x = numeric(0), y = numeric(0),
-                             seq_id = character(0)),
-    mapping     = aes(x = x, y = y, group = seq_id, color = seq_id),
+                             accver = character(0)),
+    mapping     = ggplot2::aes(
+      x = x, y = y, group = group, seq_colour = accver,
+      .component = I(.component)
+    ),
     stat        = "identity",
-    geom        = GeomPath,
-    position    = "identity",
-    show.legend = if (identical(show_legend, TRUE)) {
-                    c(colour = TRUE, fill = FALSE)
-                  } else show_legend,
-    inherit.aes = FALSE,
+    geom        = GeomChordSeq,
+    position    = position,
+    show.legend = if (identical(show.legend, TRUE)) {
+                    c(seq_colour = TRUE, fill = FALSE)
+                  } else show.legend,
+    inherit.aes = inherit.aes,
     check.param = FALSE,
     key_glyph   = key_glyph_seq,
-    params      = list(
-      linewidth = linewidth,
-      arrow = grid::arrow(type = "closed", length = grid::unit(3, "mm")),
-      ...
+    params      = c(
+      list(linewidth = linewidth),
+      if (!arrow_supplied) list(
+        arrow = grid::arrow(type = "closed", length = grid::unit(2.4, "mm"))
+      ) else list(),
+      dots
     )
   )
   lyr$ggchord_type <- "seq"
   lyr$ggchord_params <- list(
     type                  = "seq",
+    style_defaults = c(linewidth = linewidth_default),
     seq_order             = seq_order,
-    seq_labels            = seq_labels,
+    seq_labels            = NULL,
     seq_orientation       = seq_orientation,
     seq_gap               = seq_gap,
     seq_radius            = seq_radius,
     seq_curvature         = seq_curvature,
-    seq_colors            = seq_colors,
-    seq_group             = seq_group,
-    seq_group_gap         = seq_group_gap,
-    seq_group_labels      = seq_group_labels,
-    seq_group_label_radius = seq_group_label_radius,
-    seq_group_colors      = seq_group_colors,
-    legend_position       = legend_position
+    seq_style             = seq_style,
+    seq_backbone_gap      = as.numeric(seq_backbone_gap),
+    seq_backbone_width    = as.numeric(seq_backbone_width),
+    seq_arrow_supplied    = arrow_supplied,
+    seq_legend_supplied   = show_legend_supplied,
+    seq_colors            = NULL,
+    legend_position       = NULL
   )
-
-  list(lyr)
-}
-
-#' Build a concrete sequence-group label layer from computed layout data
-#'
-#' Group labels are appended at build time (not when the user calls
-#' \code{geom_seq()}), which keeps \code{geom_seq()} backward compatible: it
-#' always returns a single sequence-arc layer.
-#' @keywords internal
-ggchord_group_label_layer <- function(group_labels) {
-  if (is.null(group_labels) || nrow(group_labels) == 0) return(NULL)
-  ggplot2::layer(
-    data = group_labels,
-    mapping = aes(x = text_x, y = text_y, label = label,
-                  angle = text_angle, hjust = hjust, vjust = vjust,
-                  size = size, zcolour = zcolour),
-    stat = "identity",
-    geom = seq_group_label_geom,
-    position = "identity",
-    show.legend = FALSE,
-    inherit.aes = FALSE,
-    check.param = FALSE,
-    params = list()
+  lyr <- ggchord_capture_layer_input(
+    lyr, data, mapping, c("accver", "length", "seq_ring")
   )
+  lyr
 }

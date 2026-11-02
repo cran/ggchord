@@ -8,20 +8,17 @@ geom_seq(
   mapping = NULL,
   data = NULL,
   seq_order = NULL,
-  seq_labels = NULL,
   seq_orientation = NULL,
   seq_gap = NULL,
   seq_radius = NULL,
   seq_curvature = NULL,
-  seq_colors = NULL,
-  seq_group = NULL,
-  seq_group_gap = 0.08,
-  seq_group_labels = TRUE,
-  seq_group_label_radius = 1.35,
-  seq_group_colors = NULL,
-  linewidth = 1.2,
-  show_legend = TRUE,
-  legend_position = "right",
+  seq_style = c("auto", "single", "double", "band"),
+  seq_backbone_gap = 0.025,
+  seq_backbone_width = 0.035,
+  linewidth = 0.9,
+  position = "identity",
+  show.legend = TRUE,
+  inherit.aes = FALSE,
   ...
 )
 }
@@ -32,61 +29,47 @@ geom_seq(
 
 \item{seq_order}{Optional character vector. Specifies the drawing order of sequences}
 
-\item{seq_labels}{Optional character vector or named vector. Sequence labels}
-
 \item{seq_orientation}{Optional numeric (1 or -1). Sequence orientation, default 1}
 
-\item{seq_gap}{Optional numeric. Gap proportion between sequences, default 0.03}
+\item{seq_gap}{Optional numeric. Gap proportion between sequences, default
+0.03 in chord coordinates. In \code{\link[=coord_collinear]{coord_collinear()}}, a positive distance
+between consecutive backbones as a proportion of the longest backbone's
+width, default 0.3. The final sequence's gap is unused in linear layouts.
+Segmented linear displays measure it against the longest display row;
+windows in one row must request the same gap, and only gaps between rows
+affect vertical placement.}
 
 \item{seq_radius}{Optional numeric (> 0). Sequence arc radius, default 1.0}
 
-\item{seq_curvature}{Optional numeric. Arc curvature (0=straight, 1=standard arc, >1=more curved), default 1.0}
+\item{seq_curvature}{Optional numeric. Signed arc bow (0=straight, 1=standard arc, negative=opposite bow), default 1.0. Finite positive and negative values are accepted without clipping; magnitudes above 1 amplify the bow.}
 
-\item{seq_colors}{Optional color vector or named vector. Sequence colors}
+\item{seq_style}{Backbone geometry. \code{"auto"} uses a double backbone in
+\code{\link[=coord_circular]{coord_circular()}} and the historical single backbone in \code{\link[=coord_chord]{coord_chord()}}.}
 
-\item{seq_group}{Optional group specification. NULL disables grouping unless
-\code{seq_data} contains a \code{seq_group} column; a single string naming
-such a column uses that column; otherwise a single value, named vector,
-unnamed vector matching the sequences, or a list (see
-\code{process_sequence_param()}) is accepted.}
+\item{seq_backbone_gap}{Gap between double backbone lines.}
 
-\item{seq_group_gap}{Numeric, default 0.08. Extra gap proportion inserted
-between consecutive groups (in addition to \code{seq_gap}).}
+\item{seq_backbone_width}{Width of a band backbone.}
 
-\item{seq_group_labels}{Logical or character, default TRUE. When TRUE the
-group names are drawn at the angular midpoint of each group; a named
-character vector can be used to override the group label text.}
+\item{linewidth}{Arc line width, default 0.9}
 
-\item{seq_group_label_radius}{Numeric, default 1.35. Radial position of the
-group labels as a multiplier of the group's outermost sequence radius
-(same convention as \code{seq_label_radius}: \code{1} on the arc,
-\code{> 1} outside).}
+\item{position, show.legend, inherit.aes}{Standard ggplot2 layer arguments.}
 
-\item{seq_group_colors}{Optional named color vector by group name (or an
-unnamed vector recycled positionally). Colours the group labels.}
-
-\item{linewidth}{Arc line width, default 1.2}
-
-\item{show_legend}{Whether to show the legend for this layer, default TRUE}
-
-\item{legend_position}{Position of this layer's legend (the Seq ID legend):
-one of "left", "right", "top", "bottom" or "inside", default "right". Pass
-NULL to let the legend follow \code{theme(legend.position = ...)} together
-with the other legends. Can also be set with \code{theme(legend.position.seq = ...)}.}
-
-\item{...}{Additional arguments passed to \code{geom_path()}}
+\item{...}{Additional fixed path aesthetics. \code{colour} (or \code{color}) sets
+\code{seq_colour}. Explicit fixed values take precedence over matching mappings;
+omit fixed arguments to retain mapped styles.}
 }
 \value{
-A list of ggplot2 layers
+A ggplot2 layer.
 }
 \description{
 Draws arcs (or straight lines, depending on the curvature setting) representing sequences in the chord diagram.
 Sequence layout parameters (order, orientation, radius, curvature, colors, etc.) are specified here.
-Sequences can be visually grouped with an extra inter-group gap and optional group labels.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
-p <- ggchord(seq_data_example) + geom_seq()
-p
+seqs <- seq_data_example |>
+  select(accver, length)
+ggchord(seq_data = seqs) +
+  geom_seq()
 }

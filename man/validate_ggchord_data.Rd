@@ -16,16 +16,15 @@ validate_ggchord_data(
 }
 \arguments{
 \item{seq_data}{data.frame/tibble, required. Basic sequence information
-(columns \code{seq_id}, \code{length}).}
+(columns \code{accver}, \code{length}).}
 
 \item{ribbon_data}{data.frame/tibble, optional. Alignment results (columns
-\code{qaccver}, \code{saccver}, \code{length}, \code{pident},
-\code{qstart}, \code{qend}, \code{sstart}, \code{send}).}
+\code{qaccver}, \code{saccver}, \code{qstart}, \code{qend}, \code{sstart}, \code{send}).}
 
 \item{gene_data}{data.frame/tibble, optional. Gene annotation data (columns
-\code{seq_id}, \code{start}, \code{end}, \code{strand}, \code{anno}).}
+\code{accver}, \code{start}, \code{end}, \code{strand}; \code{anno} is optional).}
 
-\item{strict}{Logical. When \code{TRUE}, stop with an error as soon as any
+\item{strict}{Logical. When \code{TRUE}, collect issues and then stop if any
 severe problem is found. When \code{FALSE} (default), return the full
 diagnostic report without stopping.}
 
@@ -33,27 +32,31 @@ diagnostic report without stopping.}
 ribbon/gene coordinates stay inside \code{[1, sequence length]}.}
 
 \item{check_duplicates}{Logical, default \code{TRUE}. Whether to look for
-fully duplicated, near-duplicated and highly overlapping records.}
+fully duplicated, near-duplicated and highly overlapping records.
+Reciprocal overlap requires the intersection to cover at least 90 percent
+of each interval, including descending ribbon endpoints. Reversed feature
+bounds may cross a circular origin and are excluded from linear overlap
+diagnostics; exact duplicates are still reported.}
 
 \item{check_self_links}{Logical, default \code{TRUE}. Whether to flag
 alignment rows where \code{qaccver == saccver}.}
 }
 \value{
 A \code{"ggchord_validation"} object (a list) with at least:
-  \describe{
-    \item{\code{valid}}{Logical: \code{TRUE} when there are no severe errors.}
-    \item{\code{errors}}{data.frame of severe issues (table, category, row,
-      column, message).}
-    \item{\code{warnings}}{data.frame of non-severe issues (same columns).}
-    \item{\code{summary}}{Per-category counts (table, category, severity, n).}
-    \item{\code{data_summary}}{Counts of sequences/ribbons/genes, unknown
-      IDs, out-of-range rows, etc.}
-    \item{\code{invalid_rows}}{Named list of original row numbers per
-      problem category.}
-    \item{\code{cleanable}}{data.frame of fixable issues with suggested
-      actions.}
-  }
-  \code{print()} and \code{summary()} methods are provided.
+\describe{
+\item{\code{valid}}{Logical: \code{TRUE} when there are no severe errors.}
+\item{\code{errors}}{data.frame of severe issues (table, category, row,
+column, message).}
+\item{\code{warnings}}{data.frame of non-severe issues (same columns).}
+\item{\code{summary}}{Per-category counts (table, category, severity, n).}
+\item{\code{data_summary}}{Counts of sequences/ribbons/genes, unknown
+IDs, out-of-range rows, etc.}
+\item{\code{invalid_rows}}{Named list of original row numbers per
+problem category.}
+\item{\code{cleanable}}{data.frame of fixable issues with suggested
+actions.}
+}
+\code{print()} and \code{summary()} methods are provided.
 }
 \description{
 Performs structured validation of \code{seq_data}, \code{ribbon_data} and
@@ -65,19 +68,19 @@ counts, a data summary, the original row numbers of every problem, and a
 list of automatically fixable issues.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
+seqs <- seq_data_example |>
+  select(accver, length)
 data(ribbon_data_example)
+links <- ribbon_data_example |>
+  select(qaccver, saccver, qstart, qend, sstart, send)
 data(gene_data_example)
-
-res <- validate_ggchord_data(seq_data_example, ribbon_data_example,
-                             gene_data_example)
-res$valid
-print(res)
-summary(res)
-
-# Introduce a problem: unknown sequence ID in the ribbons
-bad <- transform(ribbon_data_example, saccver = "NOT_A_SEQUENCE")
-v <- validate_ggchord_data(seq_data_example, bad)
-v$invalid_rows$ribbon_unknown_id
+genes <- gene_data_example |>
+  transmute(accver, start, end, strand = source_strand)
+result <- validate_ggchord_data(seqs, links, genes)
+result$valid
+}
+\seealso{
+\code{\link{ggchord_data_contract}}
 }

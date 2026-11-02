@@ -4,29 +4,43 @@
 \alias{read_fasta_lengths}
 \title{Read one or more FASTA files into seq_data format}
 \usage{
-read_fasta_lengths(file = NULL, files = NULL, header_delim = NULL)
+read_fasta_lengths(
+  file = NULL,
+  files = NULL,
+  header_delim = NULL,
+  source_file = FALSE
+)
 }
 \arguments{
-\item{file}{Optional path to a single FASTA file.}
+\item{file}{Optional path vector or glob patterns; read before \code{files}.}
 
 \item{files}{Optional character vector of FASTA files (literal paths and/or
 wildcard patterns). All matched files are read and combined.}
 
 \item{header_delim}{Optional character. When given, each header is split at
 every occurrence of this delimiter and only the first piece is kept.}
+
+\item{source_file}{Logical. Add a \code{.source_file} column when reading one or
+more files, default \code{FALSE}.}
 }
 \value{
-A data.frame with columns `seq_id` and `length`.
+A data.frame with columns \code{accver} and \code{length}.
+A \code{ggchord_import} attribute records files and per-file output row counts.
 }
 \description{
-`file` reads a single FASTA file; `files` reads multiple files at once and
-combines them. `files` accepts a character vector of literal paths and/or
-wildcard patterns (e.g. `"examples/fasta/*.fna"`).
+\code{file} reads a single FASTA file; \code{files} reads multiple files at once and
+combines them. \code{files} accepts a character vector of literal paths and/or
+wildcard patterns (e.g. \code{"examples/fasta/*.fna"}).
 }
 \examples{
-library(ggchord)
-fasta <- tempfile(fileext = ".fna")
-writeLines(c(">seqA some description", "ACGTACGTACGTACGT", "ACGTACGT",
-             ">seqB", "TTTTGGGG"), fasta)
-read_fasta_lengths(fasta)
+\dontrun{
+library(dplyr)
+# Requires the source checkout or tutorial input bundle.
+source <- read_fasta_lengths("examples/fasta/MT108731.1.fna")
+seqs <- source |>
+  select(accver, length)
+}
+}
+\seealso{
+\code{\link{ggchord_data_contract}}
 }

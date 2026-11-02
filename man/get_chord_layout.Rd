@@ -2,24 +2,33 @@
 % Please edit documentation in R/zzz.R
 \name{get_chord_layout}
 \alias{get_chord_layout}
-\title{Get the chord layout from the package environment}
+\title{Get the chord layout from a ggchord plot}
 \usage{
-get_chord_layout()
+get_chord_layout(plot, build = TRUE)
+}
+\arguments{
+\item{plot}{A ggchord plot.}
+
+\item{build}{Logical. Build the layout when it is not cached, default TRUE.}
 }
 \value{
 A chord layout list containing the computed geometry (sequence
-  arcs, ribbon polygons, gene arrows, axis elements, extremes, colors, etc.)
+arcs, ribbon polygons, gene arrows, axis elements, extremes, colors, etc.)
 }
 \description{
-Returns the most recently computed chord layout (after the plot was built,
-e.g. via \code{print()} or \code{ggplot_build()}). This is useful for
-building custom layers or annotations on top of the chord geometry.
+Returns the layout owned by an explicit ggchord plot. This avoids ambiguous
+cross-talk when several plots are built in one R session.
+For layer-aware tabular results, prefer \code{\link[=export_ggchord_layout]{export_ggchord_layout()}}. See
+\link{ggchord_layout_contract} for fields, units and cache ownership.
+Device/context changes invalidate cached estimates, including ordinary
+label layouts. \code{build = FALSE} then reports that no current layout is cached.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
-data(ribbon_data_example)
-p <- ggchord(seq_data_example, ribbon_data_example) + geom_seq() + geom_ribbon()
-invisible(ggplot2::ggplot_build(p))
-names(get_chord_layout()$seq_arcs)
+seqs <- seq_data_example |>
+  select(accver, length)
+p <- ggchord(seq_data = seqs) +
+  geom_seq()
+get_chord_layout(p)$seqs
 }

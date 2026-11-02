@@ -1,3 +1,1388 @@
+# ggchord 0.16.6
+
+* Post-release CRAN preparation reduces offline tutorial image duplication, fixes
+  installed image links and a long help-example line, and uses smaller real
+  inputs in slow help examples. Public plotting behaviour is unchanged.
+
+* Added progressive chord, collinear and plasmid learning paths, beginning with
+  table schemas and import, then building independent layers before the full
+  showcases. All 13 unique bundled plasmid references have current feature maps.
+* Gene legends retain arrow glyphs when the gene shortcut replaces the generic
+  feature geom. Explicit legend title/text sizes in a plot theme now reach the
+  automatically generated guides instead of falling back to compact defaults.
+* Collinear repel labels try nearby horizontal placements when vertical leaders
+  are blocked by earlier labels, retaining the existing collision checks. Labels
+  can still be hidden when no permitted placement is found.
+
+* Replaced README and website entry figures with three complete, reproducible
+  showcases: mixed-curvature four-genome chord comparison, dense pETDuet-1
+  annotation and four-genome collinearity with centred rows, routed cross-row
+  links and strand-separated CDS.
+  Website figures now share explicit, coordinated scientific colours and a
+  common 0–100% identity scale. Documentation panels are transparent over a
+  uniform `#FFFCF5` plot background.
+* Reorganized documentation around chord, collinear and plasmid tasks. Added
+  a Home link, larger navigation, a visible language dropdown, a left page
+  outline and right site guide, with separate compact-screen disclosures.
+* Corrected untranslated Han reference-index categories and language-dependent
+  dropdown anchors. Expanded current examples with purrr and tidyr as optional
+  documentation dependencies; package runtime imports are unchanged.
+
+* Optional-column checks in validation and focusing now accept tibble inputs
+  without spurious missing-column warnings. Required-column validation and data
+  results are unchanged.
+* Current website, README, tutorials, help examples and teaching scripts now
+  prefer dplyr verbs and the native `|>` pipe for table preparation, with explicit
+  optional example dependencies. Removed unrelated preparation from specialist
+  help examples and a duplicated coordinate scale from a documentation plot;
+  biological record values and selections are retained.
+* The standalone GFF3 conversion example now uses explicit package imports,
+  anchored file matching and product extraction that also accepts a final
+  attribute without a trailing semicolon. Original inputs are not rewritten.
+
+* Refreshed the curated documentation spelling wordlist and added an explicit
+  `tools/check-spelling.R` review command. It does not add a package test or
+  automatic CI step; remaining candidates still require contextual review.
+
+* Fixed circular primer callouts with `side = "inside"` being moved outside by
+  the shared exterior allocator. Inner labels now retain their existing layout
+  and register their actual inner boxes. The outside default, public signatures
+  and sparse mixed exterior root ordering are retained.
+* Corrected inside restriction-label registry rows being marked as exterior
+  resources. Their existing inner geometry is retained and their measured boxes
+  now carry the inner side, without acquiring exterior slots.
+* Completed current-source RC contract coverage and documented retained flexible
+  parameter forms, support evidence and finite visual/build benchmarks. No new
+  deprecation or migration is introduced. Explicit inside callouts can still be
+  crowded across feature layers; the audit does not certify global zero overlap.
+
+# ggchord 0.16.5
+
+* Sparse circular maps containing primers and restriction labels now use the
+  shared root-ordered exterior allocator, preventing mixed-class leader
+  crossings even below the former 30-site density threshold. The documentation
+  plasmid workflow uses its dedicated theme and default feature fitting.
+* Restored the roxygen export declaration for `geom_feature_label_repel()`,
+  corrected the CDS link-projection example to use feature IDs, and completed
+  argument documentation for the selected ggplot2 re-exports.
+
+* Includes cumulative implementation and migration changes from the unreleased
+  0.16.0–0.16.4 development phases listed below.
+* Enlarged the home-page artwork to 320 px on desktop and 220 px on mobile,
+  and README/tutorial entry artwork to 200 px, retaining the lossless source.
+
+* Reorganized the documentation around first-use learning, complete workflows,
+  task guides and reference lookup. The first-plot lesson now covers installation,
+  minimal tables, interpretation and saving. Task pages prepare their own objects;
+  desktop chapter navigation and compact page outlines support long articles.
+  Redesigned the reading grid, typography, contrast and plot gallery.
+* Reworked plot selection and encoding: local source-coordinate CDS comparisons,
+  distinct sequence/feature categories, reported identity gradients, wider GC
+  tracks and larger annotation text. Documented the evidence behind each choice.
+* Added complete Han website reference prose for all current Rd topics, bound to
+  canonical source hashes; stale or missing translations prevent site generation.
+  Code, signatures and original identifiers remain unchanged.
+* Reworked documentation examples around bundled or attributed real records,
+  explicit minimum input columns, standard BLAST 12-column tables, PAF and
+  BLASTp CDS projection. GC comes from actual DNA and homology membership from
+  checked coding-sequence identity. Native amino-acid axes remain a separate
+  proposal; existing readers/adapters and flexible parameter forms are retained.
+* Added three full home-page plot types, larger documentation exports, explicit
+  semantic categorical and continuous example palettes and an accessible image viewer with actual-size mode.
+  These styles are declared in examples rather than changing package defaults.
+
+* Four-column gene tables now retain the default strand fill mapping and honour
+  user gene scales without an optional `anno` column. Annotation absence no
+  longer drops the mapping and paints genes with a fallback colour.
+
+* Empty primer search results now compose with primer geometry and label layers
+  without failing on scalar assignment to a zero-row table. Nonempty styles and
+  public signatures are unchanged.
+
+* Updated the package title and entry documentation to cover chord, single
+  circular sequence and collinear views. Rewrote paired English/Han README and
+  tutorial sources around the 0.16.4 candidate API, with shared runnable code,
+  terminology, migration, FAQ and a reproducible gallery.
+* Rebuilt the documentation website on native pkgdown / Bootstrap 5 templates,
+  with paired English/Han navigation, same-page language switching (including
+  anchors and mobile), complete Rd reference, local full-text search, code
+  disclosure, executable-text copy controls and light/dark themes. Expanded real-record and pUC19 workflows,
+  formats/adapters, links/statistics, feature stacking, labels, multiple tracks,
+  projection/homology, scales/guides and result consumption. Source CI and a manual preview/deployment workflow
+  keep generated output separate from main. Website cutover uses GitHub Pages
+  Actions after explicit deployment authorization.
+* Documentation figures now share explicit ggsave dimensions and an asset/hash
+  manifest across languages. Retired unreferenced source figures were removed
+  after checking references; frozen website assets remain intact.
+* Added the user-designed ggchord artwork to the home page, README and tutorial
+  entry points, with full-resolution lossless PNG/WebP and an explicitly resized
+  navigation thumbnail. No redraw, palette reduction or loss of RGBA pixels.
+* Enabled Markdown parsing for existing roxygen comments so code names and help
+  links render correctly in Rd. Public signatures, supported defaults, geometry
+  and return fields remain unchanged from the candidate baseline.
+
+# ggchord 0.16.4 (unreleased)
+
+* Consolidated the existing 130 exports into a candidate API baseline with
+  current defaults, reviewed units/NULL/NA semantics, coordinate support,
+  result contracts and migration records. Added `ggchord_api_contract` help.
+  Existing public signatures, spelling aliases, reexports and documented
+  return fields are retained. This is not v1.0.0 or release validation.
+
+* Automatic gene/feature label layers now reject manual `label_rotation`,
+  radial/circumferential offsets, orientation and overlap controls that were
+  previously accepted through `...` and ignored. Use the corresponding
+  `geom_gene_label()` or `geom_feature_label()` layer for manual placement,
+  or `label_layout` for automatic geometry. Supported formals and defaults
+  are unchanged.
+* Migration errors for old `gene_label_*` names now identify the correct
+  gene/feature fixed-label layer. The old `"aligned"` request points directly
+  to `label_layout = "auto"`; unknown legacy prefixes no longer suggest
+  nonexistent replacement arguments.
+
+# ggchord 0.16.3 (unreleased)
+
+* Added the `ggchord_layout_contract` help topic describing retained output
+  fields, units, provenance, measurement status and cache ownership. Prefer
+  `export_ggchord_layout()` for layer-aware tables; the complete-layout getter
+  remains supported with its documented members.
+* Missing feature-label text no longer triggers empty-box collision warnings;
+  visible geometry and label placement are unchanged.
+
+* Layout stages now declare their inputs and results explicitly instead of
+  evaluating quoted stages in a shared function frame. Representative public
+  geometry remains unchanged, including historical coordinate anchor rules.
+* Fixed an order-dependent empty export after building a plot. Layer IDs are
+  now assigned consistently on build-local copies, including repeated use of
+  the same layer object. Rendering no longer writes derived IDs, restriction
+  offsets or circular styles into source layer objects or trains source scales.
+* Static previews now render a private plot copy, preserving the original
+  layout cache. Cached layout estimates are invalidated on device/context
+  changes for ordinary labels as well as physical tracks.
+
+# ggchord 0.16.2 (unreleased)
+
+* Added a shared `ggchord_data_contract` help topic covering reading, adaptation,
+  validation, explicit cleaning, preparation, coordinate projection and search
+  limitations. Existing public function names and cleaning defaults are retained.
+* Corrected reciprocal-overlap diagnostics and deduplication: both intervals must
+  meet the overlap threshold, descending ribbon endpoints work, and overlap
+  deduplication keeps distinct relative directions. Circular-origin feature
+  bounds are excluded from context-free linear overlap diagnostics.
+* Ribbon merging preserves alignment length for unmerged rows. Merged envelopes
+  carry `.length_estimated`, with source lengths/identities in report list-columns.
+  Pair IDs always remain grouping keys, and default merging retains crossing
+  block orders separately. Envelope spans and weighted identities are display
+  summaries, not newly computed alignment statistics.
+* Single-base link endpoints no longer contradict a supplied reverse direction
+  during preparation. Cleaning retains pre-clipping direction evidence rather
+  than inferring direction from a collapsed endpoint. Merge/bundle keep these rows independent; deduplication
+  and density use supplied direction evidence and preserve unknown orientation.
+* File readers apply the same path-vector/glob handling to `file` and `files`,
+  read each normalized path once in first-occurrence order, and reject malformed
+  paths. Text input is explicitly UTF-8; invalid encoding and inconsistent
+  tabular field counts fail clearly. BLAST/GFF3 preserve literal identifiers
+  such as `001` and `NA`; BLAST/GFF3/FASTA now retain physical `.source_line`.
+  GenBank parsing opens UTF-8 files explicitly in the selected optional parser.
+* Linear restriction methylation context no longer wraps across sequence ends.
+  Primer labels use numeric factor labels for binding coordinates and metadata.
+* Ribbon utilities reject malformed required numeric inputs and nonscalar
+  filter thresholds with specific errors. Primer annealing lengths reject
+  fractional values, and protein-search thresholds require scalar values.
+  Validation suggestions now distinguish
+  gene-row filtering from ribbon deduplication and include missing/empty IDs
+  under their existing cleaning policy.
+* Clarified that bundle statistics are source summaries, density is relative bin
+  weight, common-feature confidence is heuristic, and six-frame protein matching
+  uses the standard code without interpreting source genetic-code metadata.
+  Nonstandard translation requires DNA matching or an external code-aware workflow.
+
+# ggchord 0.16.1 (unreleased)
+
+* Breaking: fixed feature geometry uses `shape`, and both gene/feature widths
+  use `width`. Removed fixed `feature_shape`, `feature_width` and `gene_width`
+  arguments now report their replacements. The mapped aesthetic remains
+  `aes(feature_shape = ...)`.
+* Breaking: gene label geometry parameters use the shared `label_*` names;
+  ribbon endpoint settings use `link_gap` and `link_ctrl_point`, matching
+  point links. Old names report migration errors in this version.
+* Removed `gene_offset` and `feature_offset`; use
+  `position = position_strand(offset = ...)`. The former v1.0.0 removal date
+  is superseded. Explicit strand-named Position offsets are signed; negate
+  the old minus-strand magnitude when migrating that format.
+* `geom_gene()` is now a directed-arrow shortcut over the feature constructor,
+  retaining strict known strands, its independent `gene_fill` role and default
+  appearance. Gene and feature labels share internal constructors.
+* Theme signatures now expose ggchord appearance settings for argument
+  completion. Standard text, plot and common legend settings remain available
+  by name through `...`; all five presets retain their defaults.
+* Geometry-role mappings explicitly reject late `stage()` expressions and
+  namespaced `after_stat()`/`after_scale()` calls. Fixed visual styles bypass
+  unused mappings during input checks and automatic scale inference.
+* Restriction-site `leader = "straight"` now draws direct connectors, and
+  `"elbow"` draws one-bend connectors. These explicit selections previously
+  used the radial router. Default `"radial"` geometry is unchanged; the redundant
+  `"trunk"` alias is removed with a migration error directing users to `"radial"`.
+  Label slots and source rows are shared by the three routing styles.
+* Explicit fixed styles now take precedence over matching visual mappings.
+  Omitted style defaults retain user mappings, including inherited point-link
+  styles. Omit a fixed argument to use its mapped value. Feature presets
+  preserve whether their shape argument was actually supplied. Explicit
+  sequence `colour`/`color` now sets the backbone's `seq_colour` aesthetic.
+* Clarified the distinct tasks of sequence position scales and linear bp
+  reference bars, theme appearance groups, and the provenance and uses of
+  re-exported ggplot2/grid helpers.
+* Corrected `coord_chord(rotation = ...)` documentation to counterclockwise
+  rotation from the positive x axis. Geometry and defaults are unchanged.
+
+# ggchord 0.16.0 (unreleased)
+
+* Custom primer definitions now reject a shared `primer_id` with different
+  sequences, instead of silently losing one sequence and assigning its aliases
+  to another binding. Multiple names for the same ID and sequence remain valid.
+* Region highlights retain their original input row after invalid or unknown
+  rows are filtered, preventing geometry from acquiring another row's ID or
+  metadata. Factor start/end coordinates use numeric labels instead of level
+  codes, consistently with feature inputs. Original input tables are unchanged.
+* `scale_ribbon_alpha_continuous()` now uses ggplot2's default output range
+  when `range = NULL`, instead of creating an unusable palette. Explicit
+  non-NULL ranges retain their existing behavior.
+* Sequence-position scales now inverse-transform chord/circular axis breaks
+  before placing them at genomic positions, matching the existing linear
+  behavior. Explicit `breaks = NULL` and `minor_breaks = NULL` remain empty
+  instead of falling back to automatic ticks. An axis with no ticks still
+  retains its backbone decoration.
+* Clarified `ribbon_ctrl_point = NULL`: chord layouts retain their historical
+  origin control `c(0, 0)`; collinear layouts derive controls from endpoints.
+  Ribbon geometry and defaults are unchanged.
+* Input metadata columns are now retained for visual mappings when expanded
+  geometry does not already contain the reserved column. For example,
+  `geom_gene(aes(gene_fill = label), ...)` can use a source `label` column
+  again. Computed coordinate, text and style fields on the protection list still
+  take precedence over matching input columns.
+* Feature layers now interpret factor `start`/`end` columns through their
+  numeric labels instead of silently drawing factor level codes as genomic
+  positions. Existing numeric and numeric-text inputs retain their behavior;
+  source input objects are not modified.
+* `clean_ggchord_data()` now rejects non-NULL `ribbon_data` and `gene_data`
+  that are not data frames, rather than silently treating them as absent.
+  Supply a data frame/tibble, use the explicit adapters for supported interval
+  objects, or pass `NULL` when the optional table is intentionally absent.
+* Cleaning reversed ribbon endpoints now records the original and sorted
+  coordinates separately in the report. The existing sorting policy,
+  direction handling and returned coordinates are unchanged.
+* Cleaning missing or empty sequence IDs in ribbon/gene tables now follows
+  the documented `unknown_id = "drop"`, `"error"` or `"keep"` policy, just
+  like other IDs absent from the sequence reference. Reports retain original
+  values and row numbers. `"keep"` does not invent IDs or clean coordinates
+  without a reference length; sequence-reference IDs must still be non-missing,
+  non-empty and unique. Preparation adapters retain their stricter inputs;
+  clean malformed IDs explicitly before passing tables to preparation.
+* `geom_feature_plasmid(shape = ...)` now accepts the documented concise
+  shape alias when `feature_shape` is omitted. Explicitly supplying both
+  shape arguments still produces the existing conflict error; defaults and
+  user-supplied scales keep their behavior.
+
+# ggchord 0.15.0
+
+* Added `prepare_ggchord_data()` for explicit conversion, named feature/link
+  collections and optional preparation steps. Defaults preserve rows and
+  coordinates; reports retain validation, import/conversion provenance, stage
+  reports and original ribbon source rows. Optional genome membership stays
+  metadata, with globally unique contig IDs. Layout optimization returns a
+  suggestion rather than changing the plot. Preparation cleaning preserves
+  directional endpoints by default; explicit endpoint sorting conflicts with
+  later direction-dependent ribbon steps. Standalone cleaning defaults remain
+  unchanged. Nondirectional features use named feature tables rather than the
+  constructor's directional gene table.
+* Added `read_bed()` for BED3–12, including BED12 segments, and `read_paf()` for
+  PAF mappings. Both explicitly convert zero-based half-open intervals to
+  one-based inclusive coordinates and retain original fields and file
+  provenance. PAF identity is a ratio of reported match/block counts, which
+  may be approximate, and mapping quality 255 is marked unavailable.
+  Zero-width BED records and unsupported BED extensions produce explicit
+  errors instead of guessed intervals.
+* `read_gff3()` now retains decoded feature IDs and multiple parent IDs,
+  including repeated IDs for discontinuous features. Use the new
+  `unstranded = "keep"` with generic feature layers to retain nondirectional
+  records. The legacy default `"plus"` is unchanged. All readers now retain
+  file and per-file row counts in import provenance, carried through adapters.
+* Added `find_ggchord_loci()` to select explicit feature IDs and extend their
+  windows upstream/downstream according to strand. It reports clipping and
+  source rows, and composes with the existing independent-window focus helper.
+* Added `validate_ggchord_hierarchy()` for explicit genome/contig primary and
+  foreign keys, and `link_ggchord_clusters()` for supplied cluster membership
+  and comparison pairs. Multicopy comparisons are omitted with a report by
+  default; explicit Cartesian expansion is bounded before allocation. Homology
+  anchors retain segments and source rows without inventing alignment scores.
+* Added `build_ggchord_cds()`, `project_ggchord_features()` and
+  `project_ggchord_links()` for explicit spliced CDS maps, bidirectional
+  domain-coordinate projection and confirmed ungapped protein links. Phase,
+  strand, partial codons and declared segment order govern projection. Genetic
+  codes remain supplied metadata; no translation or alignment is run. Disjoint
+  domains retain their gaps on round trips; projected protein statistics are
+  source metadata rather than nucleotide identity or alignment length.
+* Added `read_genbank()` for local GenBank/GBFF records through an explicitly
+  selected Python environment with optional Biopython and R jsonlite. Record
+  IDs, joined locations, qualifiers, uncertain boundaries and raw metadata are
+  retained; unsupported locations stop or remain explicitly unplaced. No
+  environment is installed or modified. `as_ggchord_seq()` also accepts optional
+  Biostrings sequence objects, requiring explicit IDs for unnamed input and
+  preserving nucleotide/amino-acid units rather than converting widths.
+* Added `segment_ggchord_data()` and explicit `coord_collinear(segments = ...,
+  segment_gap = ...)` for separate windows on one display row and local
+  reversals. Gaps have break marks and no invented source coordinates. Interval
+  links are split or dropped at omitted regions, point links retain their
+  sources, and exported window transforms support reversible position mapping.
+  Ribbon adjacency follows display rows. Unsupported same-row connections
+  produce a selection report or actionable error. These settings are opt-in;
+  ordinary coordinate defaults retain their behavior.
+* Added explicit quantitative bands with `position_track()` and
+  `geom_track_tile()`, `geom_track_line()` and `geom_track_bar()`. Named tracks
+  share numerical domains across sequences, windows and layers; independent
+  scoped value/fill/colour scales preserve user scales and fixed styles.
+  Baselines, negative values, transforms, missing samples, clipping and closed
+  circular lines have explicit semantics. Bands use local normals in all three
+  coordinates and reject layouts that fold or collide with other backbones or
+  bands. Values are never implicitly averaged, resampled or aggregated.
+* Added `focus_ggchord_track()` for quantitative source windows. It retains
+  source lineage, trims intervals explicitly and never invents edge samples
+  or connects separate windows across omitted regions. Exported track geometry,
+  band registries and row diagnostics retain domains and omission reasons.
+* Physical track placement, explicit label shrinking and shared bp reference
+  bars now use render-local measurements of the actual panel during standard
+  printing/saving. Refinement is bounded and caches respect size changes;
+  device-free or unresolved geometry remains explicitly estimated. Existing
+  defaults keep their layout behavior.
+* Feature and gene repel labels support explicit `label_fit = "shrink"` or
+  `gene_label_fit = "shrink"` with a minimum size. Full source text, requested
+  and final sizes and fallback reasons are exported. Labels that cannot fit at
+  the lower bound use the existing external/hiding strategy. Default fitting
+  and text sizes are unchanged.
+* `scale_seq_position_continuous(sequences = ...)` selects sequence/window
+  axes. Added `geom_seq_scale()` for an independent shared bp reference in
+  linear displays, including segmented and reversed windows. Display gaps
+  do not become genomic distances. Track numerical axes remain separate from
+  genomic position axes.
+* Added opt-in `diagnose_ggchord()` for one target device and canvas size. It
+  reports panel measurements, canvas bounds, small text/lines, guide sizes,
+  existing layout diagnostics and optional colour-vision hints. Unsupported
+  evidence, including font embedding/fallback and transparency in other
+  applications, is explicitly unchecked. Reports never certify all formats
+  or change plot styles; saving continues to use standard `ggsave()`.
+* Fixed `clean_ggchord_data()` dropping valid one-base inclusive gene and
+  ribbon intervals. Entirely out-of-range intervals are still reported and
+  dropped when clipping, while a retained one-base overlap survives.
+* Plot construction now rejects explicitly non-nucleotide `sequence_unit`
+  values instead of labelling amino-acid or generic character widths as bp.
+  Sequence adapters still retain these widths and units for preparation;
+  protein features require an explicit CDS projection before genomic plotting.
+* Exported shrink diagnostics now belong only to their actual text layer.
+  Dependency layouts no longer duplicate them under backbone/feature layers,
+  and completely hidden labels retain an explicit final hiding reason.
+* Reduced the default tests to minimal public behavior and focused serious
+  regressions. Detailed geometry, output and performance checks remain
+  explicitly invoked development/release tools.
+
+# ggchord 0.14.0
+
+* Added `coord_collinear()` for horizontal multi-sequence comparisons using
+  the existing sequence, gene, feature, region, ribbon and point-link layers.
+  All sequences share one bp scale. Sequence order, reversed orientation,
+  role-specific visual scales and focused input tables retain their meanings.
+  Position offsets become upward/downward distances; feature-stack lanes stay
+  separate from physical sequence rows. Axes and labels use linear strategies.
+  Gene/feature labels share obstacles across layers; `label_diagnostics`
+  records placement and hiding decisions. Labels moved off a feature use
+  readable dark text rather than retaining a light internal contrast colour.
+  Adding a linear label layer preserves each gene/feature layer's own
+  Position and stacking. Omitted label Positions share matching geometry
+  lanes even when feature categories and label text differ; explicit label
+  Positions affect only label anchors. Automatic feature labels retain the
+  requested side, and newly displaced leaders retain explicit line types.
+* In linear coordinates, `geom_seq(seq_gap = ...)` sets consecutive backbone
+  spacing as a proportion of the longest backbone width (default 0.3). Explicit
+  sequence radius, curvature, ring mappings/scales and sequence-label radius
+  now produce an actionable conflict when combined with `coord_collinear()`.
+  Remove those circular settings before switching coordinates. Circular-only
+  primer, restriction-site and centre-label layers require `coord_circular()`;
+  generic linear annotations use `geom_feature()` and its label layers.
+  The circular feature-label restriction `external = FALSE` also requires
+  removal or `coord_circular()` when switching to linear label rows.
+* Linear ribbon and point-link endpoints face their destination track and
+  inspect feature obstacles on that side. Default controls come from their
+  endpoints; explicit controls use linear layout units. Cross-track links may
+  cross intervening backbones. Layout exports identify the coordinate as
+  `"collinear"` and include `sequence_layout` with real backbone y, horizontal
+  ranges, orientation and units per bp, without circular radii or track IDs.
+  See `examples/collinear.R` for a runnable teaching example.
+* Linear position scales now respect `breaks = NULL`, `minor_breaks = NULL`
+  and `labels = NULL`, allowing ticks or their text to be explicitly hidden.
+  Axes also render correctly with all ticks or tick labels disabled, retaining
+  the axis line without evaluating absent component columns.
+* Private text measurement now uses a Unicode-capable graphics backend for
+  non-ASCII annotations such as `lacZα`, avoiding conversion errors from
+  single-byte base PDF encodings. Requests known to contain only ASCII retain
+  their existing measurement path. Preview title and legend measurement also
+  prefers the Unicode backend when available, which may slightly change font
+  metrics. Cleanup restores the caller's device after nested measurements and
+  is safe to call more than once.
+* Fixed two-line circular centre labels disappearing outside the plot on
+  devices with a reversed native y axis, including SVG and some screen/PDF
+  devices. The sequence name and length retain their intended order and spacing.
+* Plots derived from a shared base now own independent layout caches. Layout
+  exports retain each plot's ribbon rows without first rendering it, while
+  adding a sibling plot preserves the base plot's existing cached layout.
+
+
+* Added coordinate-owned display alignment: `coord_collinear(align = ...)`
+  supports left, centre and right alignment, while `anchor` aligns explicitly
+  selected positions or intervals. `orientation = "auto"` uses directional
+  interval-link support, controlled by `min_support`. It preserves sequence
+  order and exports support, conflicting evidence and unresolved cases; it is
+  a display heuristic rather than a biological strand inference. Explicit
+  `geom_seq(seq_orientation = ...)` conflicts with automatic orientation.
+  These settings compose with the usual `+` grammar; no `sync()` step is needed.
+* Linear ribbons now connect adjacent displayed sequences by default.
+  `geom_link_ribbon(adjacent_only = FALSE)` retains non-adjacent ribbons, and
+  `pairs = data.frame(qaccver = ..., saccver = ...)` selects explicit unordered
+  comparisons. The exported `connection_report` identifies each retained or
+  omitted source row and its reason. Chord coordinates retain all comparisons
+  by default. Ribbon outlines are solid for adjacent displayed sequences and
+  dashed for non-adjacent sequences. Adjacency follows the final display order;
+  chord neighbours also include the first/last pair. Explicit fixed styles
+  and data mappings with their user scales retain precedence. Ribbon line-type
+  mappings also respect `inherit.aes = TRUE`, including valid constant mappings,
+  without changing an automatic or differently mapped ribbon layer.
+* Fixed narrow linear channels whose default ribbon or point-link endpoints
+  could extend past the opposite backbone. Automatic baseline gaps now fit
+  the available channel; an impossible fixed gap or feature clearance produces
+  an actionable spacing error. Duplicate IDs in `seq_order` are rejected while
+  sequence subsets remain supported.
+* `focus_ggchord_data()` now clips and relocates composite feature segments,
+  derived runs and cleavage-arrow positions consistently, including repeated
+  focus operations. Source coordinates and truncated ends are retained for
+  sequences, features and links. Clipped alignment endpoints remain a linear
+  display projection; estimated lengths and retained source identity values
+  are marked rather than represented as a newly computed alignment.
+* Linear short arrows now compress their heads inside the true interval
+  instead of applying the circular minimum display width. Truncated heads are
+  suppressed at the cropped genomic end, and exports identify display bounds,
+  deliberate symbol extensions and truncation. Circular arrow rendering keeps
+  its existing geometry.
+* Added `geom_seq_break()` for cropped linear sequence ends and
+  `scale_seq_position_continuous(coordinates = "source")` for original genomic
+  axis coordinates after focus. `map_ggchord_position()` converts relative or
+  source bp to layout x/y, and layout x back to bp, for ordinary ggplot2
+  annotations. Linear layout exports retain the corresponding reversible
+  translation, orientation, bp scale and source origin.
+* Linear label inheritance now matches unique `feature_id` values, allowing
+  filtered or reordered label tables to retain their source feature's lane.
+  Conflicting IDs/intervals are diagnosed; explicit label Positions remain
+  independent. Multiple matching entity layers require an explicit label
+  Position or unambiguous IDs. Labels that fit inside a feature are considered
+  before wrapping text for adjacent positions. Shared placement checks leaders
+  against other text, features, backbones and leaders, with unresolved routes recorded as hidden labels in
+  `label_diagnostics` rather than drawn through occupied geometry.
+* Added `as_ggchord_seq()`, `as_ggchord_feature()` and `as_ggchord_link()` for
+  ordinary tables and optional Bioconductor inputs, addressing GitHub issue #2.
+  Supported `Seqinfo`, `GRanges` and `GInteractions` objects can also be supplied
+  directly to the appropriate constructor/layer input. Conversion retains
+  metadata, source rows and query/subject identities, uses known full sequence
+  lengths, and does not invent identity scores or biological direction for
+  unknown-strand intervals. Unknown strands use neutral feature geometry;
+  directed gene arrows require explicit known strand information. Optional
+  packages are loaded only for their supplied objects. Conversion provenance
+  is available in exported `conversion_reports`. See `examples/bioc-inputs.R`.
+
+### Migration from earlier defaults and v0.14.0 development snapshots
+
+| Previous intent | Explicit current form |
+| --- | --- |
+| Include non-adjacent linear ribbons | `geom_link_ribbon(adjacent_only = FALSE)` |
+| Force solid outlines for every ribbon | `geom_link_ribbon(linetype = "solid")` |
+| Force dashed outlines for every ribbon | `geom_link_ribbon(linetype = "dashed")` |
+| Restore both former ribbon choices | `geom_link_ribbon(adjacent_only = FALSE, linetype = "solid")` |
+| Display original genomic axis labels after focus | `scale_seq_position_continuous(coordinates = "source")` |
+| Align or orient linear sequences | Add `coord_collinear(anchor = ..., align = "center", orientation = "auto")`; remove explicit `seq_orientation` when using automatic direction |
+
+These are explicit defaults and new opt-in controls in v0.14.0; no legacy entry
+point is deprecated or scheduled for removal in that release.
+
+# ggchord 0.13.1
+
+The v0.13.0 development work continues in v0.13.1; v0.13.0 was not published.
+The experimental global exterior-label solver was
+withdrawn after `view_ggchord()` comparisons showed severe visual regressions;
+the current sparse-map rendering keeps the v0.13.0 perimeter layout.
+
+* Fixed a rendering error when `geom_feature_label_repel()` uses `"callout"`,
+  `"radial"` or `"auto"` instead of the default `"feature"` layout.
+  The English and 汉语 vignettes now explain how to select a Unicode-capable
+  PDF device when labels contain characters unsupported by the base device.
+
+* Automatic circular previews now adapt the physical backbone diameter to the
+  printed width of displayed restriction labels, then solve labels again at
+  that size. Measurement and output use the same physical coordinate scale.
+  Dense exterior annotations enter their fan from one shared departure circle,
+  preserving their real feature, primer and cut roots with a short radial
+  segment. Ordered least-squares packing keeps congestion local; sparse upper
+  left sites and compact lower right runs no longer span an entire side or
+  bottom queue. Upper cut clusters follow their real angular gaps, with
+  feature and primer labels joining the same interval. Two ordered fan arms
+  replace an unnecessarily tall single staircase where possible. Layout
+  padding now matches the final annotation registry instead of adding a
+  second large row margin; complete glyph and leader constraints remain.
+  Composite restriction metrics include the actual font family and line height.
+  Primer name/range occupancy now matches the rendered horizontal composite.
+  Displaced exterior feature labels with a missing leader participate in the
+  shared layout with their own source data and styles.
+  External feature callout colours retain more of their source hue instead
+  of being uniformly washed out. The focused preview audit now checks the
+  exact frozen layout and individual curved glyphs.
+  Inner labels share measured local arc length on their nearest legal track;
+  both new and existing leaders are checked against actual glyph envelopes
+  and one another. Bounded retries give initially hidden tasks an earlier
+  placement opportunity, first together and then at most five single-task
+  alternatives; a result is accepted only when every previously visible
+  label remains visible and additional labels fit all constraints.
+  The same two-way line/text check now covers sparse outer
+  callouts. Centre titles use their resolved component fonts and a physical
+  reading gap, so shrinking the backbone no longer collapses the name and
+  sequence-length lines.
+
+* Reproduced the reported pETDuet-1 rendering from the original 5,420 bp
+  sequence, 54 displayed restriction cuts and five reference primers. For
+  crowded single-sequence circular maps, exterior restriction, feature and
+  primer labels now share measured local tangent space. A crowded upper arc
+  can place labels on several nearby rows while checking complete text boxes,
+  crossing leaders and leaders passing through other labels. Longer composite
+  enzyme names use a wider ordered perimeter when the short fan has no clear
+  placement. The solver measures horizontal primer text and feature callout
+  padding, preserves actual cut and feature anchors, and uses a short radial
+  shoulder when a callout begins inside the backbone. Explicit inside-site
+  layouts and multi-sequence maps retain their previous layout path. Automatic
+  `view_ggchord()` sizing no longer jumps to a very wide canvas solely because
+  the input restriction table exceeds a row-count threshold. Its circular
+  panel scale was reduced modestly after full-size reference comparison,
+  while retaining default automatic sizing; the preview also
+  fills its export canvas with the plot background colour when one is set.
+  The plasmid theme retains its existing warm-white background.
+
+* Added a `CoordCircular`-owned annotation registry as the common final layout
+  fact for circular maps. Position lanes are now exported separately from
+  globally unique physical inner tracks: track 0 records the visible sequence
+  backbone, while variable-width feature bands, curved-text tracks, inner
+  leader corridors and the axis reserve record their radius and radial
+  boundaries. Restriction sites, external feature labels and primer labels
+  retain their own visual semantics in one shared exterior registry. Sparse
+  restriction labels keep horizontal text on measured circular anchor tracks;
+  their complete text boxes participate in collision detection but are not
+  forced inside Cartesian top/right/bottom/left rails. Feature and primer
+  callouts then use the resolved restriction boxes as fixed obstacles and
+  spill only to consecutive local circular bands. `export_ggchord_layout()` exposes
+  annotation class, dominant/actual band, spill reason and leader-crossing
+  count together with the registry, and copies the
+  resolved inner-track or circular exterior-allocation fields onto affected geometry rows.
+  Adaptive plot bounds now include external feature and primer callout text,
+  so these labels remain visible after the shared outer-track solver moves them.
+  Primer callout leaders now inherit the primer colour instead of the generic
+  grey feature-leader theme.
+  Circular feature bands now size inter-arrow gutters from measured label
+  demand instead of widening every gap, and displaced inner labels prefer
+  the nearest valid track with a small local adjustment before moving deeper.
+  Labels from an outer feature band cannot use the next feature band or any
+  deeper text track; those gutters are widened instead.
+  Compact runs of repeated short features on the outermost band now enter the
+  external allocator as a complete cluster instead of splitting between
+  crowded inner labels and isolated outer callouts.
+  External feature and primer callouts are now placed across layers in their
+  real circular root order, independent of the order in which the layers were
+  added.
+  When a dense mixed fan has no free exterior slot, fallback now ranks the
+  measured candidate positions by text overlap and leader crossings instead
+  of inadvertently keeping the final position scanned. A wider circular
+  candidate search can resolve nearby mixed callout crossings without a
+  Cartesian rail; an unresolved spill reason is exported when no noncrossing
+  placement exists.
+  Registry joins now guarantee scalar track identities even when a
+  device-specific fallback omits a local resource, fixing circular layout
+  export failures on dense short-feature maps. On sparse maps, restriction
+  labels retain their backbone roots and genomic order while feature and
+  primer callouts use the remaining measured exterior slots.
+* Added a reproducible bundled sequencing-primer catalogue generated from the
+  reviewed Addgene workbook: 137 distinct oligonucleotides and all 163 source
+  alias rows are retained separately. `primer_catalog()` exposes either view,
+  while `find_primer_bindings()` searches each distinct sequence once on both
+  strands, reports circular-origin matches and uniqueness, and preserves every
+  biological alias. Exact matching is the default; longest exact 3-prime
+  annealing and the seven authoritative reference-plasmid annotations are
+  explicit modes. Reference `.dna` primer coordinates are converted from
+  zero-based storage to one-based inclusive ranges. `geom_primer()` now draws
+  an independent purple directional arc between the two lines of a double
+  backbone by default; the new
+  `geom_primer_label_repel()` draws unboxed purple labels and leaders and can
+  include the binding range. Its leader starts at the directional arc's arrow
+  tip (the primer 3-prime end). The default primer colour follows the visual
+  reference (`#A020F0`). Primers no longer consume an inner feature lane.
+* Increased the plasmid feature-label size and darkened its internal leaders
+  so feature names remain legible beside restriction-site annotations. Labels
+  placed on a feature and labels moved to an inner track both follow their
+  selected radius glyph by glyph. The nearest inner track is tried first;
+  deeper tracks are used only when the local curved envelopes collide.
+  Feature-leader line styling is now independent of the mapped text colour,
+  fixing leaders that were present in layout data but rendered with an `NA`
+  colour and therefore disappeared from the image.
+  All feature shapes now preserve one nominal radial body width, including
+  very short directional intervals; only the along-sequence body and head
+  lengths contract. The plasmid preset keeps the regular band only slightly taller
+  than its enlarged text. Long arrows retain
+  clear heads and shoulders; compact and promoter arrows constrain their
+  head dimensions so very short features keep a visible stem instead of
+  becoming chunky pentagons.
+* Added `capped_line`, an unfilled interval with short terminal caps, for
+  source records with line-only/`noColor` display semantics such as introns.
+  Directionality is now resolved before shape-specific single-head fallbacks,
+  so `+/-` promoters and other directional features keep symmetric heads.
+  Curved feature text chooses its reading direction once per complete string,
+  preventing individual characters from flipping midway around a label.
+* `find_restriction_sites()` now accepts `methylation = "auto"`, `"none"`, or
+  `"dam_dcm"` and returns `methylation_status`, `blocked_by`,
+  `display_warning`, and provenance fields. Source-backed blocked sites are
+  shown with a grey label/leader and an appended asterisk; unknown contexts are
+  not guessed. The pSB1C3 reference now reproduces the Dcm-blocked `PflMI *`
+  state without a plasmid-name rendering branch.
+* Refined the pBluescript II SK(+) circular-map layout against the supplied
+  visual reference. Restriction labels retain horizontal text on close circular
+  anchor tracks; dense local MCS labels are packed in genomic order and only
+  genuine bbox conflicts spill to adjacent outer tracks, while the short
+  upper-left group stays close to its natural sites. Feature labels now exhaust internal feature
+  gutters and deeper label tracks before becoming external, with short leaders
+  whenever an intervening physical track separates a feature and its label.
+  Compact, promoter and primer arrows use the same annular-arrow factory and
+  radial body width as other directional features. Extremely short arrows are widened
+  symmetrically around their real midpoint for display, retaining a body,
+  shoulders and a head without changing their genomic start/end or leader
+  anchor. Contiguous source-segment joins again produce dotted internal marks;
+  cleavage coordinates at the same join are merged instead of overdrawn.
+  Short dotted/dashed segment boundaries are emitted as explicit broken
+  geometry so graphics devices cannot silently render them solid. Plasmid axis
+  ticks now start at the visible inner backbone boundary and extend towards
+  the centre. Parallel labels follow the inner-ring tangent beside their tick,
+  with the leading text edge separated from the radial line instead of the
+  string being centred across it. Automatic plasmid steps now use the smallest
+  `1/2/2.5/5 × 10^k` interval producing at most ten major ticks; the origin
+  seam is not labelled twice. Major ticks and label clearance are longer.
+  Restriction-site ticks likewise
+  begin at the visible outer edge rather than the sequence centreline.
+* With no explicit dimensions, `view_ggchord()` keeps the 12.39 by 9.71 inch
+  canvas for `coord_chord()` and now derives both dimensions for
+  `coord_circular()` from its measured annotation envelope while preserving a
+  readable physical backbone diameter. Explicit output dimensions still take
+  priority, and `height = NULL` retains one-dimensional content fitting.
+  Circular previews use the measured envelope rather than a count-derived
+  width jump.
+* Circular feature bands now use non-uniform radial spacing: the transition
+  from the backbone-near band to the nested cluster reserves a two-line main
+  text corridor, each deeper pair of feature bands reserves at least one label
+  track, and the deepest band owns shared label-only tracks. Feature labels select a
+  radius before deriving their position and tangent. The exported physical
+  track index counts the backbone as track 0 and interleaves feature and text
+  tracks by radius; labels crossing intervening tracks use a leader clipped to
+  the curved glyph envelope.
+* Circular feature-track labels now use a genuinely curved baseline. After a
+  track radius is selected, the renderer measures individual glyph advances,
+  distributes the characters along that circle, and derives a separate local
+  tangent angle for every character. Collision detection and leader clipping
+  use the union of those same per-character envelopes rather than a straight
+  whole-string box; this applies both inside a feature and on a neighbouring
+  inner label track. The original row remains metadata and is not drawn.
+* Added `coord_circular()` as an independent coordinate contract for one
+  circular sequence. It supports a closed circle (`gap = 0`), a degree-based
+  opening, genomic-origin rotation, clockwise/counterclockwise direction,
+  position scales, label-aware fitting, manual limits and clipping. Ribbon and
+  link layers fail clearly because they do not belong to this coordinate.
+* **Breaking Position change.** Before v0.13, `geom_gene()` implicitly used
+  strand-separated placement with `gene_offset = 0.1`. Since v0.13,
+  `geom_gene()` defaults to `position = "identity"`. To reproduce the former
+  default, use `geom_gene(position = "strand")`. For plasmid-style shared-band
+  placement, use `geom_gene(position = "plasmid")`.
+* Added `position_strand()` and `position_plasmid()`. Signed offsets use the
+  sequence-local outward normal: `position_strand(offset = 0.1)` exactly
+  reproduces the former default (`+` strand outside, `-` strand inside), while
+  named `+`/`-` values are already signed and are not flipped again.
+  `position_plasmid(offset = -0.1)` puts both strands on the same inner band
+  and leaves arrow direction controlled by strand.
+* Feature Positions accept the standard ggplot2 identity spellings
+  `position = "identity"`, `position = position_identity()`, and
+  `position = PositionIdentity`. The latter two ggplot2 objects are re-exported
+  for use after `library(ggchord)`.
+* `position_feature_stack()` now accepts `base_position = "identity"`,
+  `"strand"`, `"plasmid"`, or the corresponding Position object. Its no-argument
+  preset uses wider 0.10-unit lanes for dense plasmid annotations. Layout export now
+  records `position_name`, `base_offset`, `lane`, `lane_offset`, and
+  `normal_offset` for gene and feature polygons.
+* Explicit `gene_offset` and `feature_offset` remain temporarily accepted,
+  translate through the former flexible accver/strand resolver, and emit a
+  migration warning. Combining a legacy offset with a non-identity Position is
+  an error. Use `position = position_strand(offset = ...)`; removal of these
+  deprecated arguments is planned for v1.0.0.
+* Refactored `geom_gene()` into a gene-specific convenience layer over the same
+  neutral feature geometry pipeline as `geom_feature(shape = "arrow")`.
+  Circular splitting, local tangent/normal calculations, arrow heads and
+  short-feature fallback are implemented once. Gene data roles, gene fill
+  scales, strand guide and key glyph remain independent public behavior.
+* `geom_feature()` and `geom_gene()` now share `arrow_head_length`,
+  `arrow_head_width`, `arrow_head_style = "shouldered" | "flush" |
+  "triangle"`, and `short_feature = "auto" | "wedge" | "block"`.
+  Features crossing the circular origin retain one source identity and split
+  into drawable arc pieces without losing strand direction.
+* Added `geom_feature_plasmid()` as a compact circular-map preset over the
+  generic feature engine. Multi-segment records remain one biological feature
+  during stacking and labelling; visible segment runs share one track and one
+  label, preserve gaps and per-segment colours, and draw arrowheads only at the
+  biological feature ends. Contiguous segment joins use dotted internal
+  dividers, an explicit non-solid `line_style` can override the join style, and
+  source cleavage arrows add or merge biological cut marks.
+  Its default position assigns overlapping intervals to generic collision
+  slots: explicit `display_priority`/`prioritized_display` comes first,
+  then the longest intervals are allocated first and each subsequent interval
+  takes the nearest collision-free lane. Non-overlapping neighbours may share
+  a lane, but continuity never carries a cassette beyond its covering parent.
+  Feature type, name, and colour no longer choose a radial lane, and
+  `find_common_features()` no longer emits semantic `preferred_lane` hints.
+  The feature-shape vocabulary includes `compact_arrow`,
+  `promoter_arrow`, `primer_arrow`, and `marker`. The three directional arrow
+  variants share one outline and width algorithm. Default common-feature geometry now follows the
+  feature's own nondirectional/forward/reverse/bidirectional value rather than
+  its biological type. Extremely short directional intervals retain a
+  restrained direction mark whose head and thickness contract with available
+  display length; zero-length point features draw a radial tick rather than a
+  minimum-width polygon. Small glyphs receive a lighter outline unless
+  linewidth is explicit. Lane collision checks use the true rendered interval
+  rather than a type-specific fabricated span. The plasmid preset now uses the visual
+  reference's semantic feature colours and type-aware default shape hints while
+  retaining user scale and explicit geometry priority. The minimum display span
+  for very short directional features is substantially smaller: a few-base
+  feature now appears as a compressed arrow with contracted head and thickness,
+  instead of being enlarged to roughly a full feature-band width. Short
+  bidirectional features likewise retain two compact heads rather than falling
+  back to a nondirectional block.
+* `geom_seq()` adds `seq_style = "single" | "double" | "band"`,
+  `seq_backbone_gap`, and `seq_backbone_width` for circular backbones. Under
+  `coord_circular()`, the implicit chord-direction arrow and redundant
+  one-sequence legend are omitted; explicit `arrow` and `show.legend` values
+  still take priority.
+* Added `geom_feature_label()` and `geom_feature_label_repel()`. They retain a
+  feature-specific public vocabulary while reusing the existing device-aware
+  text measurement, wrapping, ellipsis, collision, leader routing and frame
+  fitting engine. The default `label_layout = "feature"` compares measured text
+  width with usable feature arc length, uses tangent text inside intervals that
+  can contain it, and places compact-feature text nearby. Nearby collisions are
+  nudged deterministically and only materially displaced labels receive a light
+  leader; explicit radial/auto/callout layouts remain available. The feature
+  mode now exports `feature_label_mode = "inside" | "adjacent" | "external"`,
+  measures the final font family, face, size and line height, and checks
+  oriented label boxes against other labels, rendered feature polygons, the
+  centre reserve and the circular backbone. It searches feature-band gutters
+  and deeper internal label tracks before unresolved labels become horizontal
+  external callouts; setting
+  `external = FALSE` hides them instead of pushing them indefinitely towards
+  the centre. Label-aware coordinate fitting includes their measured boxes.
+  Feature thickness responds to final label size within bounded limits, never
+  to unbounded label length. Inside text automatically uses black or white from
+  the final fill luminance unless its colour is explicitly supplied. External
+  feature labels use rounded pastel callouts derived from their resolved fill.
+  Dense short-feature clusters stop after their nearest useful internal label
+  track and use the external fallback instead of consuming the centre.
+  Restriction-site polar placement remains independent and is never rewritten
+  into shared Cartesian side rails by the presence of a feature callout. A
+  coordinate-owned exterior occupancy pass now registers both layers' final
+  boxes and moves a colliding feature callout to the nearest free radial or
+  tangential slot without changing either layer's visual semantics.
+* Added `find_restriction_sites()` as a calculation-only API. It preserves one
+  row per pattern match, stable pattern identity, multiple motifs per enzyme,
+  overlapping/IUPAC/reverse-complement matches, circular-origin matches,
+  negative and out-of-motif cleavage offsets, Type IIS, 1/2/4-cut records and
+  unknown cleavage (`ncuts = 0`). Custom motifs may be a data frame or named
+  character vector. Overlapping fixed anchors inside degenerate IUPAC motifs
+  are now enumerated without consumption, fixing missed sites such as
+  EcoO109I in pBluescript II SK(+). REBASE source motif casing is retained for
+  auditability and lower-case reverse-cleavage definitions are oriented before
+  calculating display positions.
+* Added `filter_restriction_sites()` for display subsets (`all`, `unique`,
+  `unique_dual`, `six_plus`, `unique_6plus`, `commercial`, and `reference`) and intersecting
+  enzyme, motif-length, site-count, window and commercial filters. Filtering
+  never rewrites biological coordinates. `parent_set` additionally selects all
+  enzymes, all commercial enzymes, or a stable nonredundant commercial subset;
+  equivalence groups and preferred representatives come from the bundled
+  REBASE `embossre.equ` source. For the thirteen exact plasmid references,
+  `set = "reference"` reuses the enzyme-set name and any custom enzyme list
+  saved in the source `.dna` record. This fixes reference renders such as PX458
+  (`BbsI + EcoRI`) and pTRIPZ (`Unique Cutters + BamHI`) that were previously
+  forced through the unrelated `unique_6plus` preset. A file-saved `None`
+  profile deliberately returns no sites.
+* `geom_restriction_site()` draws ticks, labels and independent radial leaders
+  in one deterministic layer. Real site anchors are separated from final
+  label positions. Enzyme-facing text edges begin on a close circular
+  contour in genomic order; remaining boundary collisions move only to the
+  nearest local exterior track. Sparse callouts retain their natural angles, while
+  dense lateral clusters switch deterministically to a compact ordered fan
+  with uniform measured spacing rather than a rigid Cartesian text wall.
+  Natural sparse callouts use a direct connector; displaced callouts normally
+  use a radial stub and fan connector. If that connector would enter the
+  sequence circle, it follows a sampled safe exterior arc before approaching
+  the label, so wide-device fans cannot cut through the plasmid interior.
+  Enzymes sharing one cleavage coordinate are combined
+  into one stable callout while all contributing rows remain in `source_rows`.
+  Each connector ends on the enzyme-bearing left or right edge of the measured
+  label box: right-travelling lines meet its left edge and left-travelling
+  lines meet its right edge. Near-vertical leaders use the nearest corner on
+  that same side rather than switching to the top/bottom edge. Mirrored text
+  order keeps the enzyme at the connected side. The former `leader = "trunk"`
+  spelling remains
+  only as a compatibility alias and no longer creates a shared trunk.
+  Dense-fan leaders retain individual site anchors, use a short radial root,
+  and then fan out in genomic order from a narrow bundle. Default composite
+  labels are rendered as two coordinated grobs. Only unique cutters use bold
+  enzyme names; repeated cutters and coordinates use regular weight. Adjacent
+  but distinct bp sites are never merged.
+* Added `geom_seq_center_label()`, `theme_ggchord_plasmid()`,
+  `scale_feature_fill_plasmid()`, and `scale_feature_shape_plasmid()`. Manual
+  feature scales take priority over presets regardless of addition order. The
+  plasmid theme places coordinate ticks and labels inside the backbone. The
+  automatic circular-origin tick is longer and does not repeat a `0` label.
+* Added reproducible one-row sequence fixtures for all thirteen reference
+  plasmids under `examples/plasmid/`, generated from the FASTA sequences
+  without biological modification. Their `accver` and display `label` now
+  consistently use the full file stem, and deterministic `plasmid_example_*`
+  names cover every reference plasmid. Added a bundled
+  normalized common-feature database with provenance metadata and dynamic
+  exact DNA and six-frame protein matching. In `mode = "auto"`, records now
+  follow their stored detection mode: `exactProteinMatch` uses exact protein
+  followed by near-exact DNA, while other records use exact DNA. Audited
+  SnapGene 8.2.3 data are now the current source release: 1,454 features,
+  1,970 segments, 5,216 qualifier values, 548 hyperlink occurrences and a
+  903,397 bp backing sequence. The normalized database stores source-local
+  IDs separately from stable ggchord IDs, keeps standard and gap segments as
+  the authoritative structure, derives DNA from 1-based inclusive coordinates
+  plus the backing sequence, and derives protein from typed `translation`
+  qualifiers. Qualifier links retain occurrence order and anchor text without
+  URL deduplication. Version provenance records additions, modifications,
+  type reclassifications, the `Csy4 Site` name normalization and the tPA
+  signal/propeptide split; legacy wide-table DNA, protein and `q_*` columns are
+  no longer authoritative storage. Protein detection eligibility is independent
+  of feature type, including the new `sig_peptide` exact-protein records.
+  The removed legacy workbook is represented by a compact, immutable migration
+  provenance snapshot, so regenerating the database does not restore or depend
+  on the obsolete wide-table source.
+  Separately, audited annotations embedded in thirteen reference `.dna` files
+  provide an exact
+  known-sequence layer for pBR322, pUC19, pBluescript II SK(+), pSB1C3,
+  pET-28a(+), pETDuet-1, pcDNA3.1(+), pTRE-Tight-BI,
+  pSpCas9(BB)-2A-GFP (PX458), pDONR221, pCAMBIA1300, pEarleyGate 201, and
+  pTRIPZ. The generated database currently contains 201 biological features and
+  218 segments, plus seven true primer binding-site records from pSB1C3 and
+  pETDuet-1 in a separate internal reference table rather than the Feature
+  table. It records each source SHA-256 and record count. The former
+  `plasmid_example_pUC19c` object remains as a pre-release compatibility alias
+  of `plasmid_example_pUC19`. Complete REBASE 609
+  pattern data are embedded for working-directory-independent restriction-site
+  search and remain reproducible from `VERSION` plus the three `embossa_*.txt`
+  source files and `misc/embossre.equ`. Other files in the extracted
+  `examples/rebase/misc/` directory remain supplemental verification sources;
+  runtime searches do not depend on that directory.
+* Removed the v0.12 `seq_id` data/mapping compatibility entry. Rename it to
+  `accver` before calling ggchord functions.
+* Removed `ggchord::geom_ribbon()` after its v0.12 deprecation. Use
+  `geom_link_ribbon()`; existing ribbon aesthetics, scales, themes, and layout
+  export component names are unchanged.
+* `geom_link_ribbon()` now defaults to `link_avoid = "uniform"`, using one
+  obstacle-aware clearance across each endpoint. Local `"smooth"` avoidance
+  and fixed `"none"` spacing remain explicit choices; an explicit
+  `ribbon_gap` still takes priority.
+
+# ggchord 0.12.0
+
+* Added `geom_link_ribbon()` as the canonical interval link geometry. Ribbon
+  aesthetics, scales, themes and exported layout components keep their names.
+* `ggchord::geom_ribbon()` now emits a deprecation warning directing callers
+  to `geom_link_ribbon()`; removal is planned for v0.13.0. Ribbon statistics
+  use the canonical constructor without triggering the compatibility warning.
+
+* Single-sequence tables now use `accver`. Legacy `seq_id` columns/mappings
+  warn in v0.12 and will be removed in v0.13; supplying both is an error.
+  Packaged example data have been regenerated from unchanged source files.
+* Ribbon drawing requires only the six endpoint columns. `length` and
+  `pident` are optional; requested filters/statistics still require their
+  inputs. Missing identity uses a fixed fill without an Identity guide.
+* Gene annotations and feature categories may be omitted. Coordinates,
+  accessions, sequence lengths and feature strands remain required.
+* Added point links (`geom_link_line()`), independent link scales and
+  `legend.link.*`, and re-exported `grid::unit()` and `grid::arrow()`.
+* Entity obstacle providers now use rendered shapes. Local clearance is opt-in
+  through `link_avoid = "smooth"` or `"uniform"`; the default is `"none"`.
+* `link_branch = "query"` or `"subject"` optionally shares equal endpoints
+  with equal mapped styles. Trunks retain source membership in layout exports.
+* Removed `geom_ribbon_highlight()`. Use an additional
+  `geom_link_ribbon(data = subset, fill = ...)` layer instead.
+* Fixed feature-shape legend mappings and increased gene-arrow key height.
+* Shared-link fallback now preserves vertex-wise staged aesthetics instead of
+  replacing each unshared path with its first vertex style.
+* Shared ribbon branches now honor explicit edge control points, including
+  layout rotation, while preserving the shared junction tangent.
+* Split the constructor/build, automatic-scale, frame-fitting, sequence,
+  ribbon, gene/region, axis, and label calculations into focused internal
+  source modules without changing the public API or layout output.
+* Clarified why direct printing in a small RStudio Plots pane can differ from
+  export-size rendering, and recommends `view_ggchord()` for composition with
+  an explicit matching `ggsave()` size for final files.
+* Archived previous-release design records in `design-roadmap/DESIGN-HISTORY.md`.
+
+# ggchord 0.11.0
+
+* `geom_gene_label_repel()` now defaults to `gene_label_layout = "radial"`:
+  horizontal names follow each sequence's offset contour, with normal leaders
+  and short normal departures for displaced labels. `"auto"` combines side
+  columns with radial placement elsewhere, replacing the removed `"aligned"`.
+* Sequence curvature is continuous through zero and one and accepts signed
+  values without silent clipping; opposite signs mirror the bow across the
+  endpoint chord. Very large bows can make tracks intersect geometrically.
+* Static previews use a wider default and fit their height to content when
+  `height = NULL`; explicit output sizes remain respected.
+
+
+* Radial packing explores a wider, ordered fan before adding an outer contour,
+  and balances the extra clearance of opposite top/bottom sectors.
+* Content-fitted previews now export the measured gtable directly, avoiding
+  height-dependent relayout oscillation and excessive outer legend whitespace.
+  Default plot margins retain a small physical safety inset.
+
+## Preview and label fixes
+
+* Nested text measurements close only their own graphics device and restore
+  the previously active device. Alternating printing and previews no longer
+  changes preview layout or closes the IDE device, leaving later plots hidden.
+* Radial label contours now limit tangent extension past sequence endpoints.
+  Crowded labels try an outer contour instead of drifting toward a neighbouring
+  sequence, including mixed-radius plots with sequence names. The same bound
+  applies to the radial portion of `"auto"`.
+* Removed `"aligned"` requests now point directly to `"auto"`. Acceptance
+  checks verify that auto actually combines side columns with radial labels.
+* Static previews retain export warnings rather than silently suppressing
+  font, device or missing-data problems. Content fitting warns when legends
+  exceed the requested width; users can increase width or set guide rows.
+  A regression checks real PNG
+  dimensions and preservation of the caller's graphics device.
+* `tools/validate-release.R` provides reproducible common-geometry, label,
+  output, benchmark and executable-vignette checks, writing only temporary
+  artifacts. Extreme parameter stress tests are deferred.
+* Tutorial code uses the current API; retained figures are explicitly marked
+  as historical. Obsolete pkgdown references and preview-size descriptions
+  are corrected without rebuilding the published site or its assets.
+
+## Advanced tracks and layout
+
+* New `stat_ribbon_bundle()` and `stat_ribbon_density()` expose
+  `after_stat(bundle_n)`, `after_stat(bundle_weight)`, and
+  `after_stat(density)` while leaving `geom_ribbon()` conservative.
+
+* New `focus_ggchord_data()` synchronizes sequence, gene/feature, and ribbon
+  cropping across one or more loci. `position_feature_stack()` assigns the
+  minimum deterministic radial lanes, while `seq_ring` and
+  `scale_seq_ring_manual()` provide explicit multi-ring radii.
+
+
+* `geom_gene_label_repel()` adds `gene_label_segment_overlap = "fade" |
+  "clip" | "show"` and `gene_label_segment_overlap_alpha`. Covered leader
+  portions now default to a faint continuous line instead of a hard gap;
+  clipping and full display remain explicit per-layer choices.
+
+* `geom_gene_label_repel()` gains `gene_label_fit` and
+  `gene_label_max_lines`. Initially crowded annotations can be wrapped,
+  shortened with an ellipsis, handled automatically, or left unchanged;
+  explicit `gene_label_wrap` remains the fixed-width override.
+
+* `geom_gene_label(gene_label_side = "auto")` now aligns horizontal text from
+  its displacement relative to the local sequence curve rather than the plot
+  origin, fixing inward labels in several quadrants. Single-strand gene plots
+  also generate a Strand guide with the correct number and direction of keys.
+
+* The packaged gene example is rebuilt deterministically from the unchanged
+  source table with eight well-spaced, visibly varied features per sequence
+  and balanced display strands. `source_strand` retains the source annotation
+  direction, and the complete rule is recorded in
+  `data-raw/generate_example_data.R`.
+
+* The packaged ribbon example is rebuilt from the unchanged BLAST files with
+  a 300-base minimum and at most three spatially distributed alignments per
+  dense sequence pair. Sparse pairs remain intact, reducing the fixture from
+  31 to 13 ribbons without fabricating alignments.
+
+## Standard ggplot2 layer grammar
+
+* Every public geom and stat now returns one standard `LayerInstance`.
+  `geom_gene_label_repel()` uses a composite Geom/gTree implementation instead
+  of returning child-layer lists. The custom `+.ggchord` list-flattening path
+  has been removed.
+
+* Public layers consistently expose `mapping`, `data`, `position`,
+  `show.legend`, `inherit.aes`, and `...`. A layer `data` argument may be a
+  data frame or a function receiving that layer's default input table.
+
+* `prepare_ggchord_plot()` is now the single orchestration path for geometry,
+  scales and coordinates. `ggplot_build.ggchord()` delegates to it before the
+  standard ggplot2 build, keeping printing, `ggsave()` and `view_ggchord()`
+  consistent.
+
+* `coord_chord()` now constructs a real `CoordChord` ggproto. Global
+  most-recent-layout state has been removed; `get_chord_layout()` requires an
+  explicit ggchord plot.
+
+* Role aesthetics use tidy evaluation once per build and preserve source
+  columns. Geometry roles reject `after_stat()`/`after_scale()`, while visual
+  mappings continue to support staged aesthetics. User scales always win;
+  missing visual scales are inferred as continuous or discrete, and
+  incompatible mappings fail clearly.
+
+## Themes and namespace
+
+* `theme_ggchord()`, `theme_ggchord_minimal()`,
+  `theme_ggchord_publication()`, and `theme_ggchord_dark()` are now complete,
+  theme-like appearance interfaces with dotted arguments. `text` supplies the
+  parent typography and child sizes inherit through `rel()`; the redundant
+  `base_size`, `base_family`, underscore element arguments, and
+  `theme_ggchord_elements()` have been removed.
+
+* Sequence axes are displayed automatically and configured with `axis.*`
+  theme arguments. `geom_axis()` has been removed. Axis gaps, major/minor tick
+  lengths and text offsets use physical `grid::unit()` values; breaks, labels,
+  limits and transforms remain in `scale_seq_position_continuous()`.
+
+* Sequence, ribbon, gene, feature and region guides can independently inherit
+  or override position, direction, background, key dimensions, text, title,
+  margin and spacing through `legend.<role>.*`. Ribbon colourbar ticks and its
+  axis line are independently themeable. Explicit scale/`guides()` settings
+  still take precedence, and feature guides no longer inherit gene placement.
+
+* The default Identity colourbar is placed at the left edge of the panel;
+  compact sequence, strand, feature and region guides use the right edge.
+  `view_ggchord()` defaults to an 11-inch-wide content-fitted preview. Explicit
+  common or role guide positions and explicit preview dimensions still win.
+
+* British colour spelling is canonical. `seq_color`, `ribbon_color`, `colors`,
+  `scale_*_color_*()` and the new `guide_ggchord_colorbar()` are complete US
+  aliases; supplying both spellings in one call now fails explicitly.
+
+* Layout-only operations no longer open an implicit `Rplots.pdf` device while
+  converting physical units. This also fixes a following `ggsave()` or
+  `view_ggchord()` occasionally closing the wrong graphics device.
+
+* Selected ggplot2 helpers such as `theme()`, `ggtitle()`, `labs()` and
+  `guides()` remain exact re-exports. ggchord does not wrap them or expose
+  unrelated Cartesian geoms, facets, coordinates, scales, or complete themes.
+
+## Breaking API cleanup
+
+v0.11.0 removes the previous soft-compatibility layer. Removed arguments fail
+immediately with a migration message instead of warning or being ignored.
+
+| Removed entry | Replacement |
+| --- | --- |
+| `ggchord(title/rotation/panel_margin/show_legend)` | `labs()` / `coord_chord()` / `theme()` |
+| `show_legend` | `show.legend` |
+| geom legend position/key arguments | `guides()` + `guide_ggchord_*()` |
+| geom colours, order, limits, breaks and names | role-specific `scale_*()` |
+| ribbon `*_by`, direction and visual-value arguments | `aes(ribbon_* = ...)` + scales |
+| `ribbon_alpha` and ribbon outline names | `alpha`, `colour`, `linewidth`, `linetype` |
+| feature type/category/label column strings | `aes(feature_type/feature_fill/feature_label = ...)` |
+| `geom_seq(seq_labels/seq_colors)` | `geom_seq_label(labels = ...)` / sequence scale |
+| `geom_axis()` and its style/layout arguments | automatic axis + `theme_ggchord(axis.*)`; breaks/labels use the position scale |
+| `geom_seq_region(regions/region_* style)` | `data`, `fill`, `colour`, `alpha` |
+
+Vignette code examples are migrated to the current API and checked separately
+from document rendering. Existing figures and the public site are retained
+for a separate documentation rebuild after this release.
+
+# ggchord 0.10.0
+
+## Highlights
+
+* Dense alignments can now be simplified explicitly with
+  `bundle_ggchord_ribbons()`, while `optimize_ggchord_layout()` searches for a
+  deterministic sequence order and orientation with fewer weighted crossings.
+  `geom_ribbon()` remains conservative: one input row still draws one ribbon
+  unless the user requests preprocessing.
+
+* `geom_feature()` supports independent `"arrow"`, `"block"`,
+  `"chevron"`, and `"lollipop"` geometries with
+  `scale_feature_shape_manual()`. Shapes and legend keys follow each
+  sequence's local tangent/normal frame; lollipop heads remain circular on
+  curved sequences.
+
+* New `export_ggchord_layout()` provides stable layer geometry with
+  `layer_id`, `source_row`, mapped input columns, and coordinate-space
+  metadata. New `view_ggchord()` previews the real dimensions produced by
+  `ggsave()` without introducing a second saving API or an interactive
+  dependency.
+
+## Ribbons, labels, and layout
+
+* The default `ribbon_gap = NULL` resolves clearance per endpoint. Ribbons
+  move closer to `geom_seq()` where no gene or feature polygon is present and
+  retain clearance where a physical obstacle overlaps the genomic interval.
+  Text and leader lines are not treated as ribbon obstacles.
+
+* Ribbon boundaries use a darker neutral outline, and unrequested ribbon or
+  gene polygons are no longer computed. Dense-data reports preserve source-row
+  mappings, alignment direction, weights, and approximation diagnostics.
+
+* `geom_gene_label()` is the single fixed/manual label layer and now supports
+  horizontal, radial, or tangent text; inside, outside, or automatic side
+  selection; and hide, nudge, or allow overlap policies. Automatic leader-line
+  placement remains in `geom_gene_label_repel()`.
+
+* Coordinate fitting uses independent tight x/y ranges. Text measurement,
+  collision boxes, leader clipping, and limits share a device-aware physical
+  scale, preventing small exports from being measured as a six-inch canvas.
+  The transparent default legend background no longer masks labels extending
+  into compact plot margins.
+
+## Visual system and ggplot2 integration
+
+* Default sequence, ribbon, gene, label, axis, and background styles were
+  recalibrated for a restrained publication-oriented hierarchy. Strand legend
+  keys use the same tapered silhouettes and directions as `geom_gene()`.
+
+* Identity, sequence, strand, and feature guides scale keys, colourbars,
+  typography, and margins relative to the output device, with bounded scaling
+  for extreme sizes. Explicit guide dimensions remain authoritative.
+
+* Namespace imports are deliberately narrow. Internal ggplot2, grid, and
+  grDevices calls are qualified, while ggchord selectively re-exports only
+  helpers directly useful for chord plots: `aes()`, `after_stat()`,
+  `after_scale()`, `annotate()`, `labs()`, `ggtitle()`, `guides()`,
+  `theme()`, the four theme element constructors, `margin()`, `rel()`,
+  `ggsave()`, `last_plot()`, `waiver()`, and `expansion()`. Cartesian
+  geoms, facets, coordinates, generic scales, and complete theme presets remain
+  in ggplot2 so IDE completion stays focused.
+
+* `theme_ggchord()` and its variants no longer repeat Cartesian-axis,
+  panel-grid, background, or margin settings already inherited unchanged.
+
+## Breaking changes
+
+* Sequence grouping has been removed: `geom_seq_group_label()`,
+  `scale_group_colour_manual()` / `scale_group_color_manual()`, and every
+  `seq_group*` argument or aesthetic now produce a clear migration error.
+
+* No separate `geom_gene_label_manual()` is introduced. Use
+  `geom_gene_label()` for fixed/manual placement and
+  `geom_gene_label_repel()` for automatic layouts.
+
+* Plotly conversion remains removed. v0.10.0 focuses on deterministic static
+  ggplot2 output; interactive rendering will be reconsidered only after the
+  static API is stable.
+
+# ggchord 0.9.0
+
+## Release audit
+
+* The v0.9.0 public API was audited across constructors, geoms, role-specific
+  scales, themes, guides, coordinates, data utilities and import helpers.
+  Layer-local data/mappings, same-type layer isolation, old/new scale
+  conflicts and plot-owned layout retrieval were rechecked against the final
+  v0.9.0 interface.
+
+* The obsolete, unused `ggchord_label_pad()` internal helper and its generated
+  help page were removed. Adaptive limits remain the single implementation
+  used to fit rendered label boxes.
+
+* `ggchord()` now reuses the structured validator for its always-on safety
+  checks instead of maintaining a second validation rule set. Validation also
+  stops advanced coordinate and duplicate calculations when malformed numeric
+  columns make those calculations unsafe, returning a complete report rather
+  than a secondary type error.
+
+## Static rendering focus
+
+* The experimental Plotly conversion method and dependency have been removed.
+  v0.9.0 focuses on deterministic ggplot2 output; a future interactive design
+  will be considered separately after the static API is stable.
+
+* Default discrete colours now use a colour-vision-friendly palette (with a
+  qualitative HCL fallback for larger sets). Strand colours, sequence and gene
+  outlines, ribbon separation, highlight colour and legend key glyphs were
+  recalibrated for clearer screen, PDF and greyscale output. These defaults
+  remain fully replaceable through the role-specific scales and geom styles.
+
+## Data correctness and import fixes
+
+* `clean_ggchord_data(unknown_id = "keep")` now retains unknown gene rows
+  without attempting coordinate checks against a missing sequence length.
+  Sorting reversed ribbon intervals records their original same/reverse
+  direction so drawing does not silently change alignment orientation.
+
+* Ribbon filtering reports every removal reason for a row;
+  `deduplicate_ggchord_ribbons(keep = "first")` now means the first input row;
+  and `merge_ggchord_ribbons()` no longer leaves stale values in disagreeing
+  auxiliary columns. Use `extra_columns = "first"` to request the previous
+  first-row behaviour explicitly.
+
+* BLAST outfmt 7 imports now parse and validate `# Fields:` instead of assuming
+  a fixed 17-column layout. GFF3 parsing stops at `##FASTA`. All three import
+  helpers can add `.source_file` with `source_file = TRUE`.
+
+* Unknown ribbon and gene sequence IDs now have the same severe validation
+  level. Skipped duplicate checks for exceptionally large pair groups are
+  reported rather than omitted silently. Feature categories, region outlines,
+  curved-region side selection and highlight argument validation were fixed.
+
+## Layer-specific data and geometry
+
+* Every ggchord layer now receives a stable `layer_id` and its own geometry
+  registry entry. Multiple gene, feature, region, ribbon, highlight, axis or
+  label layers no longer reuse the last layer's data and parameters.
+
+* Layer `data` and role mappings such as `aes(seq_id = chromosome, start =
+  from)` are evaluated against that layer's input. Original columns are joined
+  back to expanded geometry through `source_row`, so ordinary visual mappings
+  remain available during the ggplot2 build.
+
+* `get_chord_layout(plot, build = TRUE)` retrieves the layout owned by a
+  specific plot. Calling `get_chord_layout()` without a plot still works for
+  compatibility but is deprecated because “most recently built plot” is
+  ambiguous when plots are built in an interleaved order.
+
+* Sequence reference paths are cached within one build and reused by
+  independent same-type layers. The cache is local to that build and cannot
+  leak geometry between plots.
+
+## Role-specific scales
+
+* Sequence, group, ribbon, gene, feature and region layers now use independent
+  role aesthetics: `seq_colour`, `group_colour`, `ribbon_fill`,
+  `ribbon_alpha`, `ribbon_colour`, `ribbon_linetype`, `gene_fill`,
+  `feature_fill` and `region_fill`. Their public `scale_*()` constructors can
+  coexist in one plot without replacing another layer's fill or colour scale.
+
+* `scale_seq_position_continuous()` controls genomic major/minor breaks and
+  labels. It is trained independently against each sequence length.
+
+* `scale_group_color_manual()` and `scale_ribbon_color_manual()` are available
+  as American-English aliases of their `colour` counterparts, matching
+  ggplot2's spelling convention.
+
+* Old scale-like geom arguments remain functional during v0.9.0 and emit one
+  migration warning per session. Supplying both an old argument and the new
+  role scale is an error rather than silently choosing one. Principal
+  migrations are:
+
+| Old geom argument | New interface |
+| --- | --- |
+| `seq_colors`, `seq_group_colors` | `scale_seq_colour_manual()`, `scale_group_colour_manual()` |
+| `ribbon_colors`, colour limits/breaks/name | `scale_ribbon_fill_*()` |
+| `ribbon_*_by` | the corresponding `aes(ribbon_* = ...)` |
+| `ribbon_alpha_range` | `scale_ribbon_alpha_continuous(range = ...)` |
+| ribbon outline/linetype/direction visual values | ribbon colour/linetype/alpha scales |
+| `gene_colors`, `gene_order` | `scale_gene_fill_manual()` |
+| `feature_colors`, `feature_order` | `scale_feature_fill_manual()` |
+| axis major/minor counts and labels | `scale_seq_position_continuous()` |
+
+## Coordinate, theme and guide helpers
+
+* `coord_chord()` now owns global rotation, aspect ratio, clipping and view
+  fitting. `fit = "labels"` measures annotation boxes, `fit = "geometry"`
+  fits only geometric marks, and `fit = "manual"` requires explicit limits.
+  User-supplied limits take priority, and replacing it with another ggplot2
+  coordinate system is no longer silently undone during the build.
+
+* `theme_ggchord()`, `theme_ggchord_minimal()`, `theme_ggchord_dark()` and
+  `theme_ggchord_publication()` provide a small set of composable themes.
+  Dedicated theme elements are registered for axes, sequence/group labels,
+  gene labels and leader segments; data-driven colours remain scales.
+
+* `guide_ggchord_legend()` and `guide_ggchord_colourbar()` are thin wrappers
+  around ggplot2 guides with compact chord-diagram defaults. Existing
+  `ggchord()` arguments `title`, `rotation`, `panel_margin` and `show_legend`
+  remain functional in v0.9.0 but point users to `labs()`, `coord_chord()` and
+  `theme()` respectively.
+
+## Geom and annotation interfaces
+
+* Gene, sequence and axis text sizes are now fixed layer values rather than a
+  shared `size` scale, so adding one label layer cannot rescale another.
+  Registered axis, sequence-label, gene-label and leader-line theme elements
+  are resolved before the standard ggplot2 build; an explicit geom style still
+  takes priority.
+
+* `geom_axis()` routes shared styles only to compatible child geoms and accepts
+  separate `line_params`, `tick_params` and `text_params`. Its former
+  `show_legend` argument is removed because axis annotations never participate
+  in a legend.
+
+* `geom_seq_group_label()` provides an independent group-label layer, while
+  the labels created implicitly by `geom_seq()` remain available for
+  compatibility. Group values now train `scale_group_colour_manual()` instead
+  of treating already-resolved colour strings as categories.
+
+* `geom_seq_label(labels = ...)` separates displayed sequence text from scale
+  labels; `seq_labels` remains a deprecated alias. Label arguments passed to
+  `geom_gene()` now fail clearly instead of being warned about and then leaked
+  into `geom_polygon()`. Geom-level legend positions and colourbar dimensions
+  remain functional during v0.9.0 but direct users to `guides()`.
+
+## Deterministic gene-label layouts
+
+* `geom_gene_label_repel()` now uses the deterministic
+  `gene_label_layout = "aligned" | "radial" | "arc"` interface. `"aligned"`
+  remains the default and arranges horizontal labels on orderly cardinal
+  rails. `"radial"` uses the nearest collision-free local offset track while
+  keeping text horizontal. `"arc"` rotates readable text along the sequence
+  tangent and draws a short leader only when a label has moved away from its
+  first track.
+
+* All modes now use each sequence's real curve and local normal, including
+  custom `seq_radius`, `seq_curvature`, `seq_gap`, mixed `seq_orientation`,
+  rotation and explicit rings. They share fixed-obstacle avoidance,
+  cross-sequence collision handling, order-preserving leader routing and
+  device-aware clipping. Rotated labels use oriented-rectangle collision and
+  clipping, preventing spurious whitespace and oversized breaks in leaders.
+
+* The layout ideas adapt orderly multi-sequence callout figures and the
+  external/inside feature-label approaches offered by SnapGene and Geneious.
+  ggchord uses generic API names and integrates the ideas into its own geometry
+  system. See the
+  [SnapGene feature-label documentation](https://support.snapgene.com/hc/en-us/articles/10383722725524-Display-Feature-Labels-Below-or-Inside-a-Map)
+  and [Geneious label options](https://manual.geneious.com/en/latest/Sequences.html).
+
+## Breaking API simplification
+
+`geom_gene_label_repel()` now has the following focused interface:
+
+```r
+geom_gene_label_repel(
+  mapping = NULL, data = NULL,
+  gene_label_layout = "aligned",
+  gene_label_size = NULL, gene_label_wrap = NULL,
+  gene_label_side = "outside", max_overlaps = Inf,
+  gene_label_segment_linetype = "auto",
+  show_legend = FALSE, ...
+)
+```
+
+Removed arguments fail immediately rather than being silently ignored:
+
+| Removed argument(s) | Migration |
+| --- | --- |
+| `gene_label_rotation`, `gene_label_radial_offset`, `gene_label_circum_offset`, `gene_label_circum_limit` | Use `geom_gene_label()` for manual rotation or offsets. |
+| `box_padding`, `point_padding`, `min_segment_length`, `force`, `seed` | Select an automatic `gene_label_layout`; collision and line settings are managed by the mode. |
+| `gene_label_orientation`, `gene_label_segment` | Use `gene_label_layout = "aligned"`, `"radial"`, or `"arc"`. |
+
+This was the v0.9.0 interface. v0.10.0 subsequently strengthens the existing
+fixed-position `geom_gene_label()` instead of introducing a separate manual
+geom; see the development section above.
+
 # ggchord 0.8.0
 
 ## New features: improved label placement and de-overlap
@@ -46,8 +1431,6 @@
   `zcolour` identity scale, so they never interfere with the Seq ID colour
   legend. `geom_seq()` stays backward compatible and still returns a single
   layer; group labels are appended lazily at build time.
-
-* `plotly::ggplotly()` and the layout-data path now include the group labels.
 
 ## New features: ribbon visual mappings and direction
 
@@ -175,8 +1558,8 @@
 
 * The layout is now computed by `ggplot_build()` rather than by a custom
   `print()` method. As a result `print()`, `ggsave()`, `ggplot_build()` and
-  other standard ggplot2 workflows (e.g. `plotly::ggplotly()`) all work
-  directly on ggchord plots, and rendering no longer modifies the user's plot
+  other standard ggplot2 workflows all work directly on ggchord plots, and
+  rendering no longer modifies the user's plot
   object.
 
 * New layer `geom_seq_label()`: places sequence labels at the midpoint of each
@@ -192,11 +1575,6 @@
 * Themes, scales and other ggplot2 objects can now be added with `+` (e.g.
   `p + theme(legend.position = "bottom")`), and user-supplied colour/fill
   scales are respected instead of being overwritten.
-
-* `plotly::ggplotly()` now works on any ggchord plot, including plots that
-  combine the ribbon and gene layers (previously this raised a scale error).
-  A dedicated `ggplotly.ggchord()` method converts the computed geometry to a
-  plotly-friendly plot and restores the Seq ID / Strand / Identity legends.
 
 * `ggchord()` now warns about suspicious input data: reversed or out-of-range
   alignment/gene coordinates, `pident` outside [0, 100], and sequence IDs that
@@ -259,10 +1637,6 @@
 * Legend keys are transparent and do not inherit `panel.background` (ggplot2
   4.x lets unset legend keys follow the panel background, so the key fill is
   set explicitly to stay transparent).
-
-* `plotly::ggplotly()` output now shows the Seq ID / Strand / Identity legends
-  (the layout-level `showlegend` switch is enabled) and reproduces the
-  `geom_seq()` directional arrowheads as plotly annotations.
 
 * Sequence (and gene) labels no longer end up upside down when a global
   `rotation >= 90` is used: the readability flip is now re-applied after the

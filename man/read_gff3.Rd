@@ -9,39 +9,52 @@ read_gff3(
   files = NULL,
   feature_types = "CDS",
   anno_from = c("product", "Name", "gene", "ID"),
-  unstranded = c("plus", "drop")
+  unstranded = c("plus", "drop", "keep"),
+  source_file = FALSE
 )
 }
 \arguments{
-\item{file}{Optional path to a single GFF3 file.}
+\item{file}{Optional path vector or glob patterns; read before \code{files}.}
 
 \item{files}{Optional character vector of GFF3 files (literal paths and/or
 wildcard patterns). All matched files are read and combined.}
 
 \item{feature_types}{Character vector of feature types to keep, default
-`"CDS"`.}
+\code{"CDS"}.}
 
 \item{anno_from}{Character vector of GFF3 attribute keys, tried in order to
-fill the `anno` column.}
+fill the \code{anno} column.}
 
-\item{unstranded}{Character, default `"plus"`.}
+\item{unstranded}{\code{"plus"} (legacy default) assigns unknown strands to \code{+};
+\code{"drop"} removes them. Use \code{"keep"} with \code{\link[=geom_feature]{geom_feature()}} to retain them
+as nondirectional \code{.} intervals. \code{source_strand} always records the input.}
+
+\item{source_file}{Logical. Add a \code{.source_file} column when reading one or
+more files, default \code{FALSE}.}
 }
 \value{
-A data.frame with `seq_id`, `start`, `end`, `strand`, `anno`
-  followed by `type`, `source`, `score`, `phase` and `attributes`.
+A data.frame with \code{accver}, \code{start}, \code{end}, \code{strand}, \code{anno}
+followed by \code{type}, \code{source}, \code{score}, \code{phase}, \code{attributes},
+\code{source_strand}, \code{feature_id} (decoded GFF3 ID, or missing) and a
+\code{parent_ids} list-column. Repeated IDs for discontinuous features and
+multiple parents are retained; selecting feature types may omit parents.
+A \code{ggchord_import} attribute records files, per-file output row counts and
+the one-based inclusive coordinate convention.
 }
 \description{
-`file` reads a single GFF3 file; `files` reads multiple files at once and
-combines them. `files` accepts a character vector of literal paths and/or
-wildcard patterns (e.g. `"examples/gff3/*.gff3"`).
+\code{file} reads a single GFF3 file; \code{files} reads multiple files at once and
+combines them. \code{files} accepts a character vector of literal paths and/or
+wildcard patterns (e.g. \code{"examples/gff3/*.gff3"}).
 }
 \examples{
-library(ggchord)
-gff <- tempfile(fileext = ".gff3")
-writeLines(c(
-  "##gff-version 3",
-  paste0("seqA	source	CDS	101	500	.	+	0	",
-         "ID=cds1;product=hypothetical protein")
-), gff)
-read_gff3(gff)
+\dontrun{
+library(dplyr)
+# Requires the source checkout or tutorial input bundle.
+source <- read_gff3("examples/gff3/MT108731.1.gff3", unstranded = "keep")
+features <- source |>
+  select(accver, start, end, strand, anno)
+}
+}
+\seealso{
+\code{\link{ggchord_data_contract}}
 }

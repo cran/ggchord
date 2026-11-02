@@ -4,21 +4,49 @@
 \alias{coord_chord}
 \title{Chord diagram coordinate system}
 \usage{
-coord_chord(layout = NULL)
+coord_chord(
+  rotation = 45,
+  ratio = 1,
+  xlim = NULL,
+  ylim = NULL,
+  expand = FALSE,
+  clip = "off",
+  fit = c("labels", "geometry", "manual")
+)
 }
 \arguments{
-\item{layout}{Chord layout object (passed internally by ggchord(), may be NULL)}
+\item{rotation}{Global counterclockwise layout rotation in degrees,
+default 45, measured from the positive x axis. This rotates the complete
+layout; it does not change the biological strand or sequence orientation.}
+
+\item{ratio}{Fixed y/x aspect ratio, default 1.}
+
+\item{xlim, ylim}{Optional user limits. Explicit limits take priority over
+automatically fitted limits.}
+
+\item{expand}{Logical. Expand coordinate limits, default FALSE. Automatic
+fitting already includes a small safety margin; set TRUE to request the
+additional ggplot2 coordinate expansion.}
+
+\item{clip}{Whether drawing is clipped to the panel, default \code{"off"}.}
+
+\item{fit}{Fitting strategy: \code{"labels"} includes measured label boxes,
+\code{"geometry"} fits geometric elements only, and \code{"manual"}
+requires explicit \code{xlim} and \code{ylim}.}
 }
 \value{
 A Coord object for ggplot2 \code{+} composition
 }
 \description{
-A lightweight Coord. It creates placeholder coordinates in \code{ggchord()},
-which are replaced at print time with the actual extents computed from the layout.
+Controls global rotation, aspect ratio, coordinate limits, clipping and the
+strategy used to fit chord geometry and labels.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
-p <- ggchord(seq_data_example) + coord_chord() + geom_seq()
-p
+seqs <- seq_data_example |>
+  select(accver, length)
+ggchord(seq_data = seqs) +
+  geom_seq() +
+  coord_chord(rotation = 20)
 }

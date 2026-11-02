@@ -1,31 +1,98 @@
-# coord-chord.R - lightweight chord diagram coordinate system
-# Uses ggplot2's built-in coord_fixed
-# print.ggchord replaces the coord dynamically; this function only provides an initial placeholder
+# coord-chord.R - chord diagram coordinate system
+
+#' Chord-diagram coordinate ggproto
+#' @noRd
+CoordGgchord <- ggplot2::ggproto(
+  "CoordGgchord", ggplot2::CoordCartesian,
+  ggchord_coord = TRUE
+)
+
+CoordChord <- ggplot2::ggproto("CoordChord", CoordGgchord)
+
+new_ggchord_coord <- function(proto, rotation, ratio, xlim, ylim, expand,
+                              clip, fit, user_xlim = xlim,
+                              user_ylim = ylim) {
+  ggplot2::ggproto(
+    NULL, proto,
+    limits = list(x = xlim, y = ylim), reverse = "none",
+    expand = expand, default = FALSE, clip = clip, ratio = ratio,
+    rotation = rotation, fit = fit,
+    user_xlim = user_xlim, user_ylim = user_ylim
+  )
+}
+
+#' Construct a CoordChord instance
+#' @noRd
+new_coord_chord <- function(rotation, ratio, xlim, ylim, expand, clip, fit,
+                            user_xlim = xlim, user_ylim = ylim) {
+  new_ggchord_coord(
+    CoordChord, rotation, ratio, xlim, ylim, expand, clip, fit,
+    user_xlim, user_ylim
+  )
+}
 
 #' Chord diagram coordinate system
 #'
-#' A lightweight Coord. It creates placeholder coordinates in \code{ggchord()},
-#' which are replaced at print time with the actual extents computed from the layout.
+#' Controls global rotation, aspect ratio, coordinate limits, clipping and the
+#' strategy used to fit chord geometry and labels.
 #'
-#' @param layout Chord layout object (passed internally by ggchord(), may be NULL)
+#' @param rotation Global counterclockwise layout rotation in degrees,
+#'   default 45, measured from the positive x axis. This rotates the complete
+#'   layout; it does not change the biological strand or sequence orientation.
+#' @param ratio Fixed y/x aspect ratio, default 1.
+#' @param xlim,ylim Optional user limits. Explicit limits take priority over
+#'   automatically fitted limits.
+#' @param expand Logical. Expand coordinate limits, default FALSE. Automatic
+#'   fitting already includes a small safety margin; set TRUE to request the
+#'   additional ggplot2 coordinate expansion.
+#' @param clip Whether drawing is clipped to the panel, default \code{"off"}.
+#' @param fit Fitting strategy: \code{"labels"} includes measured label boxes,
+#'   \code{"geometry"} fits geometric elements only, and \code{"manual"}
+#'   requires explicit \code{xlim} and \code{ylim}.
 #'
 #' @return A Coord object for ggplot2 \code{+} composition
 #' @export
 #'
 #' @examples
-#' library(ggchord)
+#' library(dplyr)
 #' data(seq_data_example)
-#' p <- ggchord(seq_data_example) + coord_chord() + geom_seq()
-#' p
-coord_chord <- function(layout = NULL) {
+#' seqs <- seq_data_example |>
+#'   select(accver, length)
+#' ggchord(seq_data = seqs) +
+#'   geom_seq() +
+#'   coord_chord(rotation = 20)
+coord_chord <- function(rotation = 45, ratio = 1,
+                        xlim = NULL, ylim = NULL,
+                        expand = FALSE, clip = "off",
+                        fit = c("labels", "geometry", "manual")) {
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
-  # Initial placeholder range; replaced by print.ggchord at print time
-  coord_fixed(
-    ratio = 1,
-    xlim  = c(-5, 5),
-    ylim  = c(-5, 5),
-    clip  = "off"
-  )
+  fit <- match.arg(fit)
+  if (!is.numeric(rotation) || length(rotation) != 1 || !is.finite(rotation)) {
+    ggchord_stop("coord_chord(): rotation must be a finite number")
+  }
+  if (!is.numeric(ratio) || length(ratio) != 1 || !is.finite(ratio) || ratio <= 0) {
+    ggchord_stop("coord_chord(): ratio must be a finite positive number")
+  }
+  validate_limit <- function(x, name) {
+    if (is.null(x)) return(invisible(NULL))
+    if (!is.numeric(x) || length(x) != 2 || any(!is.finite(x)) || x[1] == x[2]) {
+      ggchord_stop("coord_chord(): ", name,
+                   " must be NULL or two distinct finite numbers")
+    }
+  }
+  validate_limit(xlim, "xlim")
+  validate_limit(ylim, "ylim")
+  if (!is.logical(expand) || length(expand) != 1 || is.na(expand)) {
+    ggchord_stop("coord_chord(): expand must be TRUE or FALSE")
+  }
+  if (!clip %in% c("on", "off")) {
+    ggchord_stop("coord_chord(): clip must be 'on' or 'off'")
+  }
+  if (fit == "manual" && (is.null(xlim) || is.null(ylim))) {
+    ggchord_stop("coord_chord(): fit = 'manual' requires xlim and ylim")
+  }
+
+  new_coord_chord(rotation, ratio, xlim, ylim, expand, clip, fit)
 }

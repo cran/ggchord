@@ -1,0 +1,389 @@
+# Role-specific scales for ggchord. Keeping roles separate lets one plot use
+# independent sequence, ribbon, gene, feature and region scales without the
+# usual fill/colour collisions.
+
+#' Sequence colour scales
+#'
+#' @param ... Arguments passed to [ggplot2::scale_colour_manual()].
+#' @param values A set of aesthetic values to map data values to.
+#' @return A ggplot2 scale.
+#' @export
+scale_seq_colour_manual <- function(..., values) {
+  ggplot2::scale_colour_manual(..., values = values, aesthetics = "seq_colour")
+}
+
+#' @rdname scale_seq_colour_manual
+#' @export
+scale_seq_color_manual <- scale_seq_colour_manual
+
+#' Explicit sequence ring scale
+#'
+#' Maps user-defined ring identifiers to positive sequence radii. Ring
+#' membership is supplied with `geom_seq(aes(seq_ring = ...))`; ggchord never
+#' guesses the number, order, or spacing of rings.
+#'
+#' @param ... Arguments passed to [ggplot2::discrete_scale()].
+#' @param values A named or unnamed numeric vector of positive radii.
+#' @param name Scale title. The guide is hidden by default because the scale
+#'   controls geometry rather than a visible legend aesthetic.
+#' @param limits Optional ring order.
+#' @param guide Guide specification, default `"none"`.
+#' @return A ggplot2 discrete scale for the `seq_ring` role.
+#' @export
+scale_seq_ring_manual <- function(..., values, name = "Ring",
+                                  limits = NULL, guide = "none") {
+  if (!is.numeric(values) || length(values) == 0L || anyNA(values) ||
+      any(!is.finite(values)) || any(values <= 0)) {
+    ggchord_stop(
+      "scale_seq_ring_manual(): values must be finite positive radii"
+    )
+  }
+  if (is.null(limits) && !is.null(names(values))) limits <- names(values)
+  ggplot2::discrete_scale(
+    aesthetics = "seq_ring", palette = scales::manual_pal(values),
+    ..., name = name, limits = limits, na.value = NA_real_, guide = guide
+  )
+}
+
+#' Ribbon fill scales
+#'
+#' @param ... Arguments passed to the corresponding ggplot2 scale.
+#' @param colours,colors Gradient colours.
+#' @param values Manual values, or positions for gradient colours where
+#'   supported by the corresponding ggplot2 scale.
+#' @param guide A guide object; defaults accept the `ribbon_fill` aesthetic.
+#' @return A ggplot2 scale.
+#' @export
+scale_ribbon_fill_stepsn <- function(
+    ..., colours, values = NULL, colors,
+    guide = ggplot2::guide_coloursteps(available_aes = "ribbon_fill")) {
+  has_colours <- !missing(colours)
+  has_colors <- !missing(colors)
+  if (has_colours && has_colors)
+    ggchord_stop("scale_ribbon_fill_stepsn(): use only one of colours and colors")
+  if (!has_colours && !has_colors)
+    ggchord_stop("scale_ribbon_fill_stepsn(): colours (or colors) is required")
+  if (!has_colours) colours <- colors
+  ggplot2::scale_fill_stepsn(
+    ..., colours = colours, values = values, aesthetics = "ribbon_fill",
+    guide = guide
+  )
+}
+
+#' @rdname scale_ribbon_fill_stepsn
+#' @export
+scale_ribbon_fill_gradientn <- function(
+    ..., colours, values = NULL, colors,
+    guide = ggplot2::guide_colourbar(available_aes = "ribbon_fill")) {
+  has_colours <- !missing(colours)
+  has_colors <- !missing(colors)
+  if (has_colours && has_colors)
+    ggchord_stop("scale_ribbon_fill_gradientn(): use only one of colours and colors")
+  if (!has_colours && !has_colors)
+    ggchord_stop("scale_ribbon_fill_gradientn(): colours (or colors) is required")
+  if (!has_colours) colours <- colors
+  ggplot2::scale_fill_gradientn(
+    ..., colours = colours, values = values, aesthetics = "ribbon_fill",
+    guide = guide
+  )
+}
+
+#' @rdname scale_ribbon_fill_stepsn
+#' @export
+scale_ribbon_fill_manual <- function(..., values) {
+  ggplot2::scale_fill_manual(..., values = values, aesthetics = "ribbon_fill")
+}
+
+#' @rdname scale_ribbon_fill_stepsn
+#' @export
+scale_ribbon_fill_identity <- function(...) {
+  ggplot2::scale_fill_identity(..., aesthetics = "ribbon_fill")
+}
+
+#' Ribbon alpha, outline and linetype scales
+#'
+#' @param ... Arguments passed to the corresponding ggplot2 scale.
+#' @param range Output alpha range for a continuous scale. NULL uses the
+#'   corresponding ggplot2 scale's default range.
+#' @param values Manual aesthetic values.
+#' @return A ggplot2 scale.
+#' @export
+scale_ribbon_alpha_continuous <- function(..., range = NULL) {
+  if (is.null(range)) {
+    return(ggplot2::scale_alpha_continuous(..., aesthetics = "ribbon_alpha"))
+  }
+  ggplot2::scale_alpha_continuous(
+    ..., range = range, aesthetics = "ribbon_alpha"
+  )
+}
+
+#' @rdname scale_ribbon_alpha_continuous
+#' @export
+scale_ribbon_alpha_manual <- function(..., values) {
+  ggplot2::scale_alpha_manual(..., values = values, aesthetics = "ribbon_alpha")
+}
+
+#' @rdname scale_ribbon_alpha_continuous
+#' @export
+scale_ribbon_colour_manual <- function(..., values) {
+  ggplot2::scale_colour_manual(
+    ..., values = values, aesthetics = "ribbon_colour"
+  )
+}
+
+#' @rdname scale_ribbon_alpha_continuous
+#' @export
+scale_ribbon_color_manual <- scale_ribbon_colour_manual
+
+#' @rdname scale_ribbon_alpha_continuous
+#' @export
+scale_ribbon_linetype_manual <- function(..., values) {
+  ggplot2::scale_linetype_manual(
+    ..., values = values, aesthetics = "ribbon_linetype"
+  )
+}
+
+#' Gene, feature and region fill scales
+#'
+#' @param ... Arguments passed to [ggplot2::scale_fill_manual()].
+#' @param values A set of fill values to map data values to.
+#' @param limits Optional display order. Named feature values use their name
+#'   order by default.
+#' @return A ggplot2 scale.
+#' @export
+scale_gene_fill_manual <- function(..., values) {
+  ggplot2::scale_fill_manual(..., values = values, aesthetics = "gene_fill")
+}
+
+#' @rdname scale_gene_fill_manual
+#' @export
+scale_feature_fill_manual <- function(..., values, limits = NULL) {
+  if (is.null(limits) && !is.null(names(values))) limits <- names(values)
+  out <- ggplot2::scale_fill_manual(..., values = values, limits = limits,
+    aesthetics = "feature_fill")
+  attr(out, "ggchord_scale_priority") <- 2L
+  out
+}
+
+#' Feature shape scale
+#'
+#' Maps feature categories to the geometry types understood by
+#' [geom_feature()], including full/compact/promoter/primer arrows, markers,
+#' blocks, capped lines, chevrons, and lollipops. `capped_line` is an
+#' unfilled interval with short terminal caps.
+#' Shape values affect the actual feature geometry as well as its legend key.
+#'
+#' @param ... Arguments passed to [ggplot2::discrete_scale()].
+#' @param values A named or unnamed character vector of feature geometry names.
+#' @param name Scale and guide title, default `"Feature"`.
+#' @param limits Optional category order. Named `values` use their name order
+#'   by default so shape and fill guides can merge cleanly.
+#' @param guide Guide specification. The default is `"none"` because
+#'   [geom_feature()] combines shape silhouettes into its fill legend when
+#'   both aesthetics describe the same feature categories. Supply
+#'   [guide_ggchord_legend()] for a separate shape guide.
+#' @return A ggplot2 discrete scale for the `feature_shape` aesthetic.
+#' @export
+scale_feature_shape_manual <- function(..., values, name = "Feature",
+                                       limits = NULL, guide = "none") {
+  allowed <- c(
+    "arrow", "compact_arrow", "promoter_arrow", "primer_arrow", "marker",
+    "block", "capped_line", "primer_arc", "chevron", "lollipop"
+  )
+  if (!is.character(values) || length(values) == 0L || anyNA(values) ||
+      any(!values %in% allowed)) {
+    ggchord_stop(
+      "scale_feature_shape_manual(): values contain an unknown geometry"
+    )
+  }
+  if (is.null(limits) && !is.null(names(values))) limits <- names(values)
+  out <- ggplot2::discrete_scale(
+    aesthetics = "feature_shape",
+    palette = scales::manual_pal(values),
+    ..., name = name, limits = limits, na.value = "arrow", guide = guide
+  )
+  attr(out, "ggchord_scale_priority") <- 2L
+  out
+}
+
+ggchord_plasmid_feature_colours <- function() {
+  c(
+    CDS="#993366", gene="#993366", resistance_gene="#CCFFCC",
+    selection_marker="#CCFFCC", reporter="#05FD14",
+    peptide="#CC99B2", tag="#CC99B2",
+    promoter="#FFFFFF", rep_origin="#FFFF00", replication_origin="#FFFF00",
+    ori="#FFFF00", origin="#FFFF00", primer_bind="#A020F0",
+    primer="#A020F0", terminator="#FFFFFF", enhancer="#FFFFFF",
+    protein_bind="#31849B", binding_site="#31849B", operator="#31849B",
+    RBS="#A6ACB3", polyA_signal="#A6ACB3", poly_a_signal="#A6ACB3",
+    regulatory="#A6ACB3", LTR="#FFE4C4", repeat_region="#FFE4C4",
+    misc_RNA="#00CCFF", MCS="#99CCFF", misc_feature="#A6ACB3"
+  )
+}
+
+#' Lighten a feature colour for an external callout
+#' @noRd
+ggchord_feature_callout_fill <- function(fill, luminance = .56) {
+  vapply(as.character(fill), function(value) {
+    rgb <- tryCatch(
+      grDevices::col2rgb(value, alpha = TRUE)[, 1L] / 255,
+      error = function(e) c(184, 189, 195, 255) / 255
+    )
+    brightness <- function(colour) {
+      linear <- ifelse(colour <= .04045, colour / 12.92,
+        ((colour + .055) / 1.055)^2.4)
+      sum(linear * c(.2126, .7152, .0722))
+    }
+    # Preserve already light colours. Dark fills are mixed with just enough
+    # white for readable dark callout text; one large fixed blend washed out
+    # operators and reporter colours into nearly identical grey boxes.
+    low <- 0
+    high <- 1
+    if (brightness(rgb[1:3]) < luminance) {
+      for (i in seq_len(18L)) {
+        amount <- (low + high) / 2
+        mixed <- rgb[1:3] + (1 - rgb[1:3]) * amount
+        if (brightness(mixed) < luminance) low <- amount else high <- amount
+      }
+    } else high <- 0
+    mixed <- rgb[1:3] + (1 - rgb[1:3]) * high
+    grDevices::rgb(mixed[1L], mixed[2L], mixed[3L], alpha = rgb[4L])
+  }, character(1L), USE.NAMES = FALSE)
+}
+
+ggchord_contrast_colour <- function(fill) {
+  vapply(as.character(fill), function(value) {
+    rgb <- tryCatch(grDevices::col2rgb(value)[, 1L] / 255,
+      error = function(e) c(1, 1, 1))
+    linear <- ifelse(rgb <= .04045, rgb / 12.92,
+      ((rgb + .055) / 1.055)^2.4)
+    if (sum(linear * c(.2126, .7152, .0722)) < .36) "#FFFFFF" else "#202020"
+  }, character(1), USE.NAMES = FALSE)
+}
+
+#' Plasmid-map feature presets
+#' @param ... Additional scale arguments.
+#' @param limits Optional feature-type order.
+#' @param guide Guide used by the shape preset.
+#' @return A feature fill or shape scale.
+#' @export
+scale_feature_fill_plasmid <- function(..., limits = NULL) {
+  values <- ggchord_plasmid_feature_colours()
+  if (is.null(limits)) limits <- names(values)
+  out <- ggplot2::scale_fill_manual(
+    ..., values=values, limits=limits, aesthetics="feature_fill", na.value="#B8BDC3"
+  )
+  attr(out,"ggchord_scale_priority") <- 1L
+  out
+}
+
+#' @rdname scale_feature_fill_plasmid
+#' @export
+scale_feature_shape_plasmid <- function(..., limits = NULL, guide = "none") {
+  values <- c(
+    CDS="arrow", gene="arrow", resistance_gene="arrow",
+    selection_marker="arrow", reporter="arrow", peptide="compact_arrow",
+    tag="compact_arrow",
+    rep_origin="arrow", replication_origin="arrow", ori="arrow",
+    promoter="promoter_arrow", primer_bind="primer_arrow",
+    primer="primer_arrow", protein_bind="block", binding_site="block",
+    operator="block", terminator="block", enhancer="block",
+    regulatory="compact_arrow", RBS="block", polyA_signal="block",
+    poly_a_signal="block", LTR="block", repeat_region="block",
+    misc_RNA="block", intron="capped_line", MCS="block", misc_feature="block"
+  )
+  if (is.null(limits)) limits <- names(values)
+  out <- ggplot2::discrete_scale(
+    aesthetics="feature_shape",palette=scales::manual_pal(values),
+    ...,limits=limits,na.value="block",guide=guide
+  )
+  attr(out,"ggchord_scale_priority") <- 1L
+  out
+}
+
+#' @rdname scale_gene_fill_manual
+#' @export
+scale_region_fill_manual <- function(..., values) {
+  ggplot2::scale_fill_manual(..., values = values, aesthetics = "region_fill")
+}
+
+#' Genomic sequence position scale
+#'
+#' Controls major/minor genomic position breaks and labels independently for
+#' every sequence. The default domain is each sequence's `[0, length]` range;
+#' linear source-coordinate axes use the retained original genomic interval.
+#' This scale configures sequence axes in all three coordinate modes. To add
+#' an independent bp reference bar in a linear display, use [geom_seq_scale()].
+#'
+#' @param name Scale name; position guides are disabled by default.
+#' @param breaks,minor_breaks,labels,limits,expand,oob,transform,n.breaks Standard
+#'   continuous-scale controls.
+#' @param ... Additional arguments passed to [ggplot2::continuous_scale()].
+#' @param coordinates In linear layouts, use relative locus coordinates or
+#'   original source coordinates retained by [focus_ggchord_data()]. This
+#'   affects axis breaks and labels, not the underlying genomic geometry.
+#'   Breaks returned in transformed scale space are converted back to genomic
+#'   positions in every coordinate mode. Explicit `breaks = NULL` and
+#'   `minor_breaks = NULL` suppress the corresponding ticks.
+#' @param sequences Optional character vector selecting sequence axes by their
+#'   displayed `accver`. `NULL` keeps all axes; `character()` hides every axis.
+#'   Focused or segmented views use window IDs, not parent source accessions.
+#'   Unknown or undisplayed identifiers produce an error. This controls axis
+#'   lines, ticks and labels together without dropping sequence geometry.
+#' @return A ggplot2 continuous scale for the `seq_position` role.
+#' @md
+#' @export
+#' @examples
+#' library(dplyr)
+#' data(seq_data_example)
+#' seqs <- seq_data_example |>
+#'   select(accver, length)
+#' ggchord(seq_data = seqs) +
+#'   geom_seq() +
+#'   coord_collinear() +
+#'   scale_seq_position_continuous(breaks = seq(0, 100000, by = 20000))
+scale_seq_position_continuous <- function(
+    name = ggplot2::waiver(), breaks = ggplot2::waiver(),
+    minor_breaks = ggplot2::waiver(), labels = ggplot2::waiver(),
+    limits = NULL, expand = ggplot2::waiver(), oob = scales::censor,
+    transform = "identity", n.breaks = 6,
+    coordinates = c("relative", "source"), sequences = NULL, ...) {
+  coordinates <- match.arg(coordinates)
+  if (!is.null(sequences) && (!is.character(sequences) || anyNA(sequences) ||
+      any(!nzchar(sequences)) || anyDuplicated(sequences))) ggchord_stop(
+    "scale_seq_position_continuous(): sequences must be NULL or distinct nonempty displayed sequence IDs")
+  sc <- ggplot2::continuous_scale(
+    aesthetics = "seq_position",
+    palette = function(x) x,
+    name = name, breaks = breaks, minor_breaks = minor_breaks,
+    labels = labels, limits = limits, expand = expand, oob = oob,
+    transform = transform, n.breaks = n.breaks, guide = "none", ...
+  )
+  sc$ggchord_position_coordinates <- coordinates
+  sc$ggchord_axis_sequences <- sequences
+  sc
+}
+
+# Axis selection changes decorations, never source sequence membership.
+ggchord_filter_sequence_axes <- function(layout, selection = NULL) {
+  seqs <- as.character(layout$seqs %||% character())
+  if (!is.null(selection)) {
+    if (!is.character(selection) || anyNA(selection) || any(!nzchar(selection)) ||
+        anyDuplicated(selection)) ggchord_stop(
+      "scale_seq_position_continuous(): sequences must name distinct displayed sequence IDs")
+    unknown <- setdiff(selection, seqs)
+    if (length(unknown)) ggchord_stop(
+      "scale_seq_position_continuous(): unknown or undisplayed axis sequence ID(s): ",
+      paste(unknown, collapse = ", "), "; focused/segmented views require window IDs")
+    for (component in c("axis_lines", "axis_ticks")) {
+      data <- layout[[component]]
+      if (is.data.frame(data) && nrow(data) && "accver" %in% names(data)) {
+        layout[[component]] <- data[data$accver %in% selection, , drop = FALSE]
+      }
+    }
+  }
+  layout$axis_selection <- data.frame(accver = seqs,
+    selected = if (is.null(selection)) rep(TRUE, length(seqs)) else seqs %in% selection,
+    stringsAsFactors = FALSE)
+  layout
+}

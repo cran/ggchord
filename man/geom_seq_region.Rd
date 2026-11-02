@@ -7,32 +7,31 @@
 geom_seq_region(
   mapping = NULL,
   data = NULL,
-  regions = NULL,
-  region_fill = "#F59E0B",
-  region_color = "#B45309",
-  region_alpha = 0.25,
+  fill = "#F59E0B",
+  colour = "#B45309",
+  alpha = 0.25,
   region_width = 0.08,
   region_offset = 0,
   region_side = c("inside", "outside", "auto"),
-  show_legend = FALSE,
+  position = "identity",
+  show.legend = FALSE,
+  inherit.aes = FALSE,
   ...
 )
 }
 \arguments{
 \item{mapping}{Default NULL (uses pre-computed data)}
 
-\item{data}{Optional data.frame; an alias for \code{regions} when
-\code{regions} is NULL.}
+\item{data}{data.frame with at least \code{accver}, \code{start},
+\code{end}; optional \code{label}, \code{category} and \code{color}.
+Factor start/end columns use their numeric labels, not level codes.}
 
-\item{regions}{data.frame with at least \code{seq_id}, \code{start},
-\code{end}; optional \code{label}, \code{category} and \code{color}.}
-
-\item{region_fill}{Character. Default fill colour for regions, default
+\item{fill}{Character. Default fill colour for regions, default
 \code{"#F59E0B"}.}
 
-\item{region_color}{Character. Outline colour, default \code{"#B45309"}.}
+\item{colour}{Outline colour, default \code{"#B45309"}.}
 
-\item{region_alpha}{Numeric (0-1). Region alpha, default 0.25.}
+\item{alpha}{Numeric (0-1). Region alpha, default 0.25.}
 
 \item{region_width}{Numeric. Band width in chord radius units, default 0.08.}
 
@@ -41,13 +40,12 @@ geom_seq_region(
 \item{region_side}{Character. \code{"inside"}, \code{"outside"} or
 \code{"auto"}; \code{"auto"} places regions inside the chord when possible.}
 
-\item{show_legend}{Logical. Whether to show a legend for category colours,
-default FALSE.}
+\item{position, show.legend, inherit.aes}{Standard ggplot2 layer arguments.}
 
 \item{...}{Additional arguments passed to \code{geom_polygon()}}
 }
 \value{
-A list of ggplot2 layers
+A ggplot2 layer.
 }
 \description{
 Draws rectangular bands on sequence arcs for one or more coordinate
@@ -55,11 +53,18 @@ intervals. This is useful for marking loci, repeats, CRISPR arrays, or other
 user-defined regions without turning them into gene arrows.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(seq_data_example)
-regions <- data.frame(seq_id = "MT108731.1",
-                      start = 1000, end = 4000,
-                      color = "orange")
-p <- ggchord(seq_data_example) + geom_seq() + geom_seq_region(regions)
-p
+seqs <- seq_data_example |>
+  select(accver, length)
+data(ribbon_data_example)
+links <- ribbon_data_example |>
+  select(qaccver, saccver, qstart, qend, sstart, send)
+region <- tibble(
+  accver = links$qaccver[1], start = min(links$qstart[1], links$qend[1]),
+  end = max(links$qstart[1], links$qend[1])
+)
+ggchord(seq_data = seqs) +
+  geom_seq() +
+  geom_seq_region(data = region)
 }

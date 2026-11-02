@@ -24,7 +24,11 @@ two rows to count as coordinate duplicates (used with
 with identical pair and coordinates; \code{"coordinates"} additionally
 treats rows within \code{tolerance} bp as duplicates;
 \code{"overlap"} treats blocks whose reciprocal overlap is at least
-\code{min_reciprocal_overlap} on both sequences as duplicates.}
+\code{min_reciprocal_overlap} on both sequences as duplicates. Each
+interval must meet the threshold, not only the shorter one. Opposite
+relative endpoint directions are kept as distinct relationships by all
+methods. Single-base endpoints use supplied strand/direction evidence;
+otherwise their direction is unknown.}
 
 \item{keep}{Character, default \code{"best_pident"}. Which representative to
 keep: \code{"best_pident"} (highest pident), \code{"longest"} (longest
@@ -35,9 +39,9 @@ threshold used with \code{by = "overlap"}.}
 }
 \value{
 A list with \code{data} (deduplicated data frame with
-  \code{source_rows} attribute) and \code{report} (n_input/n_kept/n_removed
-  plus a data.frame of removed rows with \code{row}, \code{duplicate_of} and
-  \code{reason}).
+\code{source_rows} attribute) and \code{report} (n_input/n_kept/n_removed
+plus a data.frame of removed rows with \code{row}, \code{duplicate_of} and
+\code{reason}).
 }
 \description{
 Removes fully duplicated, coordinate-near-duplicated or highly overlapping
@@ -45,9 +49,13 @@ alignment blocks within each (query, subject) pair and keeps the best
 representative per \code{keep}.
 }
 \examples{
-library(ggchord)
+library(dplyr)
 data(ribbon_data_example)
-dup <- rbind(ribbon_data_example, ribbon_data_example[1, ])
-out <- deduplicate_ggchord_ribbons(dup, by = "exact")
+links <- ribbon_data_example |>
+  select(qaccver, saccver, qstart, qend, sstart, send, pident, length)
+out <- deduplicate_ggchord_ribbons(links, by = "overlap")
 out$report
+}
+\seealso{
+\code{\link{ggchord_data_contract}}
 }

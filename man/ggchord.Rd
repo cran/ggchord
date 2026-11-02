@@ -2,34 +2,34 @@
 % Please edit documentation in R/ggchord.R
 \name{ggchord}
 \alias{ggchord}
-\title{ggchord: layered multi-sequence alignment chord diagrams for ggplot2}
+\title{Layered chord, circular and collinear sequence plots}
 \usage{
 ggchord(
   seq_data,
   ribbon_data = NULL,
   gene_data = NULL,
-  title = NULL,
-  rotation = 45,
-  panel_margin = 0,
-  show_legend = TRUE,
   debug = FALSE,
-  validate = c("warn", "error", "none")
+  validate = c("warn", "error", "none"),
+  ...
 )
 }
 \arguments{
-\item{seq_data}{data.frame/tibble, required. Basic sequence information}
+\item{seq_data}{data.frame/tibble with accver and length, or a \code{GRanges},
+\code{Seqinfo} or \code{GInteractions} object with known full sequence lengths,
+or a named nucleotide Biostrings \code{XStringSet}. Unnamed sequence objects must first
+use \code{\link[=as_ggchord_seq]{as_ggchord_seq()}} with explicit \code{ids}.
+Optional S4 inputs use \code{\link[=as_ggchord_seq]{as_ggchord_seq()}}. When present,
+\code{sequence_unit} must be \code{"bp"}; amino-acid intervals require an
+explicit CDS projection, and arbitrary character widths are not bp lengths.}
 
-\item{ribbon_data}{data.frame/tibble, optional. Alignment results}
+\item{ribbon_data}{Optional alignment table with qaccver, saccver, qstart,
+qend, sstart and send. length and pident are optional unless requested
+by a mapping, filter or statistic. A \code{GInteractions} object uses
+\code{\link[=as_ggchord_link]{as_ggchord_link()}} without inventing identity or alignment length.}
 
-\item{gene_data}{data.frame/tibble, optional. Gene annotation data}
-
-\item{title}{Character. Main title of the plot, default NULL}
-
-\item{rotation}{Numeric. Global rotation angle (degrees), default 45}
-
-\item{panel_margin}{Optional numeric/list. Panel margin, default 0}
-
-\item{show_legend}{Logical. Whether to show legends, default TRUE}
+\item{gene_data}{Optional table with accver, start, end and strand.
+Annotation (anno) may be omitted. Directional \code{GRanges} are accepted;
+use \code{geom_feature(data = ...)} for unknown-strand intervals.}
 
 \item{debug}{Logical. Whether to output debug information, default FALSE}
 
@@ -40,32 +40,46 @@ and caches the full report on the plot object
 (\code{p$ggchord$validation}); \code{"error"} stops on severe problems;
 \code{"none"} skips the diagnostic validation (the cheap structural
 checks that prevent crashes are still performed).}
+
+\item{...}{Reserved for clear migration errors from removed constructor
+arguments. Use \code{\link[=labs]{labs()}}, \code{\link[=coord_chord]{coord_chord()}} and \code{\link[=theme]{theme()}} for presentation.}
 }
 \value{
 A ggchord object (inherits from ggplot) to which geom_* layers can be added with +
 }
 \description{
-ggchord visualizes multi-sequence alignment results using ggplot2's layered grammar.
-The \code{ggchord()} constructor handles data validation and global settings;
-the \code{geom_*} layers are stacked as needed, each responsible for its own layout parameters and visual rendering.
+Visualize multi-sequence alignments, a single circular sequence or linear
+collinearity using ggplot2's layered grammar. The constructor supplies data
+and validation. Add geometry with \verb{geom_*()}, select a global view with
+\code{\link[=coord_chord]{coord_chord()}}, \code{\link[=coord_circular]{coord_circular()}} or \code{\link[=coord_collinear]{coord_collinear()}}, and use
+mappings/scales for data-driven styles and themes for non-data appearance.
 The layout is computed lazily when the plot is built (e.g. via \code{print()},
 \code{ggsave()}, or \code{ggplot_build()}).
 }
 \examples{
+library(dplyr)
 library(ggchord)
 data(seq_data_example)
 data(ribbon_data_example)
 data(gene_data_example)
 
+seqs <- seq_data_example |>
+  select(accver, length)
+links <- ribbon_data_example |>
+  select(qaccver, saccver, qstart, qend, sstart, send)
+genes <- gene_data_example |>
+  transmute(accver, start, end, strand = source_strand)
 p <- ggchord(
-  seq_data = seq_data_example,
-  ribbon_data = ribbon_data_example,
-  gene_data = gene_data_example
+  seq_data = seqs,
+  ribbon_data = links,
+  gene_data = genes
 ) +
   geom_seq() +
-  geom_ribbon() +
-  geom_gene() +
-  geom_axis()
+  geom_link_ribbon() +
+  geom_gene()
 print(p)
-
+}
+\seealso{
+\link{ggchord_api_contract}, \link{ggchord_data_contract},
+\link{ggchord_layout_contract}, \code{\link[=view_ggchord]{view_ggchord()}}
 }

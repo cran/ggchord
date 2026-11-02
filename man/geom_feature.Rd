@@ -5,64 +5,105 @@
 \title{Draw generic genomic features}
 \usage{
 geom_feature(
-  data,
-  type = "type",
-  category = NULL,
-  label = "label",
-  feature_colors = NULL,
-  feature_width = NULL,
-  feature_offset = NULL,
-  feature_order = NULL,
-  show_legend = TRUE,
-  legend_position = "right",
+  mapping = NULL,
+  data = NULL,
+  shape = "arrow",
+  width = NULL,
+  arrow_head_length = 0.04,
+  arrow_head_width = 1,
+  arrow_head_style = c("shouldered", "flush", "triangle"),
+  short_feature = c("auto", "wedge", "block"),
+  segment_boundaries = TRUE,
+  boundary_colour = "#666666",
+  boundary_linewidth = 0.25,
+  boundary_linetype = "22",
+  position = "identity",
+  show.legend = TRUE,
+  inherit.aes = FALSE,
   ...
 )
 }
 \arguments{
-\item{data}{data.frame with \code{seq_id}, \code{start}, \code{end} and
-\code{strand}; optional \code{type}, \code{category} and \code{label}.}
+\item{mapping}{Optional aesthetic mapping. Role aesthetics such as
+\code{accver}, \code{start}, \code{end} and \code{strand} may rename
+input columns; ordinary visual mappings are evaluated after geometry is
+generated.}
 
-\item{type}{Column name used as the feature type, default \code{"type"}.}
+\item{data}{data.frame with \code{accver}, \code{start}, \code{end} and
+\code{strand}; optional \code{type}, \code{category} and \code{label}.
+Factor \code{start}/\code{end} columns use their numeric labels, not
+their internal level codes. Coordinates must resolve to finite numbers.
+\code{display_priority} or logical \code{prioritized_display}. As an alternative to
+\code{strand}, \code{directionality} or \code{direction} may contain
+\code{"forward"}, \code{"reverse"}, \code{"bidirectional"}, or
+\code{"none"}.}
 
-\item{category}{Optional column name used for colour grouping; defaults to
-\code{type}.}
+\item{shape}{Fixed feature geometry. An explicitly supplied shape takes
+precedence over \code{aes(feature_shape = ...)}: \code{"arrow"},
+\code{"compact_arrow"}, \code{"promoter_arrow"},
+\code{"primer_arrow"}, \code{"marker"}, \code{"block"},
+\code{"capped_line"}, \code{"primer_arc"}, \code{"chevron"}, or
+\code{"lollipop"}. The default is \code{"arrow"}.
+Use \code{aes(feature_shape = type)} together with
+\code{scale_feature_shape_manual()} to map categories to geometry.}
 
-\item{label}{Optional column name used for annotation text; defaults to
-\code{label} when present, otherwise \code{type}.}
+\item{width}{Optional numeric/vector/list controlling width in the
+shared feature geometry engine. In a circular feature-label composition,
+the base width responds to final label size within bounded limits.}
 
-\item{feature_colors}{Optional named color vector by feature value; unnamed
-vectors are recycled positionally.}
+\item{arrow_head_length, arrow_head_width}{Arrow-head dimensions in the
+sequence-local frame, shared with \code{\link[=geom_gene]{geom_gene()}}. Values above one for
+\code{arrow_head_width} create a protruding block-arrow head.}
 
-\item{feature_width}{Optional numeric or named vector controlling feature
-width; passed to \code{geom_gene(gene_width = ...)}.}
+\item{arrow_head_style}{Arrowhead construction: \code{"shouldered"} keeps the
+requested protruding head, \code{"flush"} keeps it level with the body, and
+\code{"triangle"} draws a full triangular wedge.}
 
-\item{feature_offset}{Optional numeric or named vector controlling feature
-offset; passed to \code{geom_gene(gene_offset = ...)}.}
+\item{short_feature}{Fallback for arrows too short to hold their requested
+head: an automatically compressed directional glyph, a wedge, or a block.}
 
-\item{feature_order}{Optional feature order for the legend.}
+\item{segment_boundaries}{Draw explicit internal marks carried by a
+segmented feature. Contiguous source-segment joins use dotted dividers;
+a non-solid segment-level \code{line_style} may override them, while a
+\code{cleavage_arrows} coordinate adds or merges a biological cut mark. These
+marks never create additional arrowheads.}
 
-\item{show_legend}{Logical. Show the feature legend, default TRUE.}
+\item{boundary_colour, boundary_linewidth, boundary_linetype}{Appearance of
+internal segment joins.}
 
-\item{legend_position}{Position of the feature legend: \code{"left"},
-\code{"right"}, \code{"top"}, \code{"bottom"} or \code{"inside"}.}
+\item{position}{Feature placement. Use \code{"identity"}, \code{"strand"},
+\code{"plasmid"}, \code{\link[=position_strand]{position_strand()}}, \code{\link[=position_plasmid]{position_plasmid()}}, or
+\code{\link[=position_feature_stack]{position_feature_stack()}}.}
 
-\item{...}{Additional arguments passed to \code{geom_gene()}.}
+\item{show.legend, inherit.aes}{Standard ggplot2 layer arguments.}
+
+\item{...}{Additional fixed polygon aesthetics.}
 }
 \value{
-A list of ggplot2 layers
+A ggplot2 layer.
 }
 \description{
-A thin, backwards-compatible convenience layer for CDS, tRNA, rRNA, repeat,
-CRISPR, promoter or user-defined features. It prepares a gene-compatible
-table from a \code{type} / \code{category} / \code{label} specification and
-reuses the proven \code{geom_gene()} geometry and scales.
+A general layer for CDS, tRNA, rRNA, repeat, CRISPR, promoter or user-defined
+features. It supports directional arrows, blocks, notched chevrons and
+lollipops, all generated against the sequence's real local curve. Feature
+fill and geometry use independent role-specific scales.
 }
 \examples{
-library(ggchord)
-data(seq_data_example)
-features <- data.frame(seq_id = "MT108731.1",
-                       start = 1000, end = 4000,
-                       strand = "+", type = "CDS")
-p <- ggchord(seq_data_example) + geom_seq() + geom_feature(features)
-p
+library(dplyr)
+data(plasmid_example_pUC19)
+seqs <- plasmid_example_pUC19 |>
+  select(accver, length)
+feature_source <- find_common_features(plasmid_example_pUC19)
+features <- feature_source |>
+  select(accver, start, end, strand, type, anno)
+# ASCII display copy for the default PDF help-example device.
+features <- features |>
+  mutate(anno = gsub("\u03b1", "alpha", anno, fixed = TRUE))
+ggchord(seq_data = seqs) +
+  geom_seq() +
+  geom_feature(
+    data = features,
+    shape = "block"
+  ) +
+  coord_circular()
 }

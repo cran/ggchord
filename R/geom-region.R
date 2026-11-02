@@ -1,19 +1,8 @@
 # geom-region.R - sequence-region highlight layer (v0.9.0)
 
-region_geom <- ggplot2::ggproto(
-  "GeomChordRegion", GeomPolygon
+region_geom <- rename_geom_aes(
+  ggplot2::GeomPolygon, renames = c(fill = "region_fill")
 )
-aes_names <- names(region_geom$default_aes)
-aes_names[aes_names == "fill"] <- "zregionfill"
-names(region_geom$default_aes) <- aes_names
-region_geom$handle_na <- function(self, data, params) {
-  colnames(data)[colnames(data) == "zregionfill"] <- "fill"
-  GeomPolygon$handle_na(data, params)
-}
-region_geom$draw_key <- function(data, params, size) {
-  colnames(data)[colnames(data) == "zregionfill"] <- "fill"
-  GeomPolygon$draw_key(data, params, size)
-}
 
 #' Highlight regions along sequence arcs
 #'
@@ -22,51 +11,70 @@ region_geom$draw_key <- function(data, params, size) {
 #' user-defined regions without turning them into gene arrows.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
-#' @param data Optional data.frame; an alias for \code{regions} when
-#'   \code{regions} is NULL.
-#' @param regions data.frame with at least \code{seq_id}, \code{start},
+#' @param data data.frame with at least \code{accver}, \code{start},
 #'   \code{end}; optional \code{label}, \code{category} and \code{color}.
-#' @param region_fill Character. Default fill colour for regions, default
+#'   Factor start/end columns use their numeric labels, not level codes.
+#' @param fill Character. Default fill colour for regions, default
 #'   \code{"#F59E0B"}.
-#' @param region_color Character. Outline colour, default \code{"#B45309"}.
-#' @param region_alpha Numeric (0-1). Region alpha, default 0.25.
+#' @param colour Outline colour, default \code{"#B45309"}.
+#' @param alpha Numeric (0-1). Region alpha, default 0.25.
 #' @param region_width Numeric. Band width in chord radius units, default 0.08.
 #' @param region_offset Numeric. Radial offset from the sequence arc, default 0.
 #' @param region_side Character. \code{"inside"}, \code{"outside"} or
 #'   \code{"auto"}; \code{"auto"} places regions inside the chord when possible.
-#' @param show_legend Logical. Whether to show a legend for category colours,
-#'   default FALSE.
+#' @param position,show.legend,inherit.aes Standard ggplot2 layer arguments.
 #' @param ... Additional arguments passed to \code{geom_polygon()}
 #'
-#' @return A list of ggplot2 layers
+#' @return A ggplot2 layer.
 #' @export
 #'
 #' @examples
-#' library(ggchord)
+#' library(dplyr)
 #' data(seq_data_example)
-#' regions <- data.frame(seq_id = "MT108731.1",
-#'                       start = 1000, end = 4000,
-#'                       color = "orange")
-#' p <- ggchord(seq_data_example) + geom_seq() + geom_seq_region(regions)
-#' p
+#' seqs <- seq_data_example |>
+#'   select(accver, length)
+#' data(ribbon_data_example)
+#' links <- ribbon_data_example |>
+#'   select(qaccver, saccver, qstart, qend, sstart, send)
+#' region <- tibble(
+#'   accver = links$qaccver[1], start = min(links$qstart[1], links$qend[1]),
+#'   end = max(links$qstart[1], links$qend[1])
+#' )
+#' ggchord(seq_data = seqs) +
+#'   geom_seq() +
+#'   geom_seq_region(data = region)
 geom_seq_region <- function(mapping = NULL, data = NULL,
-                            regions = NULL,
-                            region_fill = "#F59E0B",
-                            region_color = "#B45309",
-                            region_alpha = 0.25,
+                            fill = "#F59E0B",
+                            colour = "#B45309",
+                            alpha = 0.25,
                             region_width = 0.08,
                             region_offset = 0,
                             region_side = c("inside", "outside", "auto"),
-                            show_legend = FALSE,
+                            position = "identity",
+                            show.legend = FALSE,
+                            inherit.aes = FALSE,
                             ...) {
+  supplied <- c(region_fill = !missing(fill), colour = !missing(colour),
+    alpha = !missing(alpha))
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
-  regions <- regions %||% data
+  dots <- list(...)
+  if ("color" %in% names(dots)) supplied[["colour"]] <- TRUE
+  alias <- ggchord_colour_alias(colour, dots, "geom_seq_region()", sys.call())
+  colour <- alias$colour
+  dots <- alias$dots
+  ggchord_reject_retired(dots, "geom_seq_region()", c(
+    regions = "data",
+    region_fill = "fill",
+    region_color = "colour",
+    region_alpha = "alpha",
+    show_legend = "show.legend"
+  ))
   region_side <- match.arg(region_side)
-  if (!is.numeric(region_alpha) || length(region_alpha) != 1 ||
-      !is.finite(region_alpha) || region_alpha < 0 || region_alpha > 1) {
-    ggchord_stop("region_alpha must be in [0, 1]")
+  if (!is.numeric(alpha) || length(alpha) != 1 ||
+      !is.finite(alpha) || alpha < 0 || alpha > 1) {
+    ggchord_stop("alpha must be in [0, 1]")
   }
   if (!is.numeric(region_width) || length(region_width) != 1 ||
       !is.finite(region_width) || region_width <= 0) {
@@ -81,33 +89,47 @@ geom_seq_region <- function(mapping = NULL, data = NULL,
     x = numeric(0), y = numeric(0),
     group = integer(0),
     zregionfill = character(0),
+    colour = character(0),
     alpha = numeric(0),
     stringsAsFactors = FALSE
   )
 
   lyr <- ggplot2::layer(
     data        = empty_polys,
-    mapping     = aes(x = x, y = y, group = group,
-                      zregionfill = zregionfill, alpha = alpha),
+    mapping     = ggplot2::aes(x = x, y = y, group = group,
+                      region_fill = zregionfill, colour = colour,
+                      alpha = alpha),
     stat        = "identity",
     geom        = region_geom,
-    position    = "identity",
-    show.legend = show_legend,
-    inherit.aes = FALSE,
+    position    = position,
+    show.legend = show.legend,
+    inherit.aes = inherit.aes,
     check.aes   = FALSE,
     check.param = FALSE,
-    params      = list(...)
+    params      = c(dots, list(region_fill = fill, colour = colour,
+      alpha = alpha)[supplied])
   )
   lyr$ggchord_type <- "seq_region"
   lyr$ggchord_params <- list(
     type           = "seq_region",
-    regions        = regions,
-    region_fill    = region_fill,
-    region_color   = region_color,
-    region_alpha   = region_alpha,
+    regions        = data,
+    region_fill    = fill,
+    region_color   = colour,
+    region_alpha   = alpha,
     region_width   = region_width,
     region_offset  = region_offset,
     region_side    = region_side
   )
-  list(lyr)
+  lyr <- ggchord_capture_layer_input(
+    lyr, data, mapping, c("accver", "start", "end")
+  )
+  lyr$ggchord_input_transform <- function(x) {
+    for (name in intersect(c("start", "end"), names(x))) {
+      if (is.factor(x[[name]])) {
+        x[[name]] <- suppressWarnings(as.numeric(as.character(x[[name]])))
+      }
+    }
+    x
+  }
+  lyr
 }

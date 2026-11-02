@@ -1,6 +1,6 @@
 # geom-ribbon.R - alignment ribbon layer
-# Fetches pre-computed ribbon polygon data from the package environment and renders it with geom_polygon
-# Ribbon parameters are specified in this layer and stored for use at print time
+# Layer-owned inputs and parameters are resolved into ribbon polygons by the
+# plot-owned layout calculation, then drawn through the polygon geom.
 
 # ---------------------------------------------------------------------------
 # Internal helper: clone a polygon geom and expose selected aesthetics under
@@ -8,160 +8,159 @@
 # scales are independent from the gene layer's plain "fill" scale and from the
 # sequence layer's plain "colour" scale.
 # ---------------------------------------------------------------------------
-rename_geom_aes <- function(geom = GeomPolygon,
-                            renames = c(fill = "zfill",
-                                        colour = "zoutline",
-                                        linetype = "zlinetype")) {
-  new_geom <- ggplot2::ggproto(
-    paste0("GeomChord", sub("^Geom", "", class(geom)[1])), geom
-  )
-
-  aes_names <- names(new_geom$default_aes)
-  for (old in names(renames)) {
-    aes_names[aes_names == old] <- renames[[old]]
-  }
-  names(new_geom$default_aes) <- aes_names
-
-  old_handle_na <- geom$handle_na
-  new_geom$handle_na <- function(self, data, params) {
-    for (old in names(renames)) {
-      colnames(data)[colnames(data) == renames[[old]]] <- old
-    }
-    old_handle_na(data, params)
-  }
-  old_draw_key <- geom$draw_key
-  new_geom$draw_key <- function(data, params, size) {
-    for (old in names(renames)) {
-      colnames(data)[colnames(data) == renames[[old]]] <- old
-    }
-    old_draw_key(data, params, size)
-  }
-  new_geom
-}
-
 # The geom used by the ribbon layer; fill is exposed as "zfill" so that the
 # ribbon and gene layers keep independent fill scales.
-ribbon_geom <- rename_geom_aes(GeomPolygon, renames = c(fill = "zfill"))
+ribbon_geom <- rename_geom_aes(
+  ggplot2::GeomPolygon, renames = c(fill = "ribbon_fill", alpha = "ribbon_alpha")
+)
 
 make_ribbon_geom <- function(outline = FALSE, linetype = FALSE) {
-  renames <- c(fill = "zfill")
-  if (isTRUE(outline)) renames <- c(renames, colour = "zoutline")
-  if (isTRUE(linetype)) renames <- c(renames, linetype = "zlinetype")
-  rename_geom_aes(GeomPolygon, renames = renames)
+  renames <- c(fill = "ribbon_fill", alpha = "ribbon_alpha")
+  if (isTRUE(outline)) renames <- c(renames, colour = "ribbon_colour")
+  if (isTRUE(linetype)) renames <- c(renames, linetype = "ribbon_linetype")
+  rename_geom_aes(ggplot2::GeomPolygon, renames = renames)
 }
 
 #' Add an alignment ribbon layer
 #'
-#' Draws colored ribbons corresponding to alignment results. Color scheme and spacing parameters are specified here.
+#' Draws alignment ribbons. Identity is mapped to `ribbon_fill` by default;
+#' When pident is absent, the default is a fixed grey fill with no Identity
+#' guide. Alignment length and identity are never inferred from endpoints.
+#' Alternative mappings and legends are controlled with `aes()`, `scale_*()`
+#' and `guides()`.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
 #' @param data Default NULL (retrieved automatically from the layout)
-#' @param ribbon_color_scheme Character. Color scheme \code{"pident"},
-#'   \code{"query"}, \code{"subject"} or \code{"single"}, default \code{"pident"}
-#' @param ribbon_colors Optional color vector. Ribbon color parameters
-#' @param ribbon_color_by Optional character column name. When set, ribbon fill
-#'   is mapped to a continuous colourbar for that numeric column instead of
-#'   \code{pident} (e.g. \code{"bitscore"}).
-#' @param ribbon_color_limits Optional numeric length-2 limits for
-#'   \code{ribbon_color_by}.
-#' @param ribbon_color_breaks Optional numeric breaks for the \code{ribbon_color_by}
-#'   colourbar.
-#' @param ribbon_color_name Optional legend title for the \code{ribbon_color_by}
-#'   colourbar (defaults to the column name).
-#' @param ribbon_alpha Numeric (0-1). Ribbon transparency, default 0.35
-#' @param ribbon_alpha_by Optional character column name. When set, alpha is
-#'   scaled continuously from that numeric column.
-#' @param ribbon_alpha_range Numeric length-2. Alpha range used by
-#'   \code{ribbon_alpha_by}, default \code{c(0.15, 0.9)}.
-#' @param ribbon_ctrl_point Optional vector/list. Bezier control points, default c(0,0)
-#' @param ribbon_gap Optional numeric/vector. Spacing between sequences and ribbons, default 0.15
-#' @param alpha Ribbon transparency (overrides ribbon_alpha), defaults to the value used in the layout
-#' @param ribbon_outline_color Character. Color of the ribbon outline (border), default "black"
-#' @param ribbon_outline_width Numeric. Line width of the ribbon outline, default 0.05
-#' @param ribbon_outline_linetype Numeric or character. Line type of the ribbon outline, default 1 (solid); see \code{linetype} in ggplot2 for options
-#' @param ribbon_outline_by Optional discrete column name. When set, outline
-#'   colour is mapped by that column and \code{ribbon_outline_colors} controls
-#'   the palette.
-#' @param ribbon_outline_colors Optional named color vector for
-#'   \code{ribbon_outline_by}; unnamed vectors are recycled positionally.
-#' @param ribbon_linetype_by Optional discrete column name. When set, outline
-#'   linetype is mapped by that column and \code{ribbon_linetypes} controls the
-#'   values.
-#' @param ribbon_linetypes Optional named linetype vector for
-#'   \code{ribbon_linetype_by}.
-#' @param ribbon_direction Character. How to visually distinguish same- vs
-#'   reverse-orientation alignments: \code{"none"}, \code{"alpha"},
-#'   \code{"outline"} or \code{"linetype"}.
-#' @param ribbon_direction_colors Named color vector with \code{same} and
-#'   \code{reverse} entries, used when \code{ribbon_direction = "outline"}.
-#' @param ribbon_direction_linetypes Named linetype vector with \code{same} and
-#'   \code{reverse} entries, used when \code{ribbon_direction = "linetype"}.
-#' @param ribbon_direction_alpha Named numeric vector with \code{same} and
-#'   \code{reverse} entries, used when \code{ribbon_direction = "alpha"}.
-#' @param show_legend Whether to show the legend, default TRUE
-#' @param legend_position Position of this layer's legend (the Identity(%)
-#'   colourbar): one of "left", "right", "top", "bottom" or "inside", default
-#'   "left". Pass NULL to let the legend follow
-#'   \code{theme(legend.position = ...)} together with the other legends.
-#' @param legend_key_width Optional width of the Identity(%) colourbar key.
-#'   Accepts a grid unit, e.g. \code{unit(1, "cm")}, or a number interpreted
-#'   as centimetres. Default NULL uses the ggplot2 default width.
-#' @param legend_key_height Optional height of the Identity(%) colourbar key.
-#'   Accepts a grid unit, e.g. \code{unit(5, "cm")}, or a number interpreted
-#'   as centimetres. Default NULL lets the vertical bar fill the available
-#'   height (and uses a fixed height for horizontal legends).
+#' @param link_ctrl_point Optional vector/list of Bezier edge controls.
+#'   Two numbers specify one shared control; four numbers specify controls for
+#'   the two ribbon edges. A per-row list may contain pairs of coordinate vectors.
+#'   NULL uses the origin \code{c(0, 0)} in chord layouts and derives controls
+#'   from the sequence endpoints in collinear layouts. With shared branches,
+#'   controls shape the far ends while the junction follows the shared trunk.
+#' @param link_gap Optional numeric/vector controlling spacing between
+#'   sequences and ribbon endpoints. With the default
+#'   \code{link_avoid = "uniform"}, \code{NULL} uses one obstacle-aware
+#'   clearance across each endpoint. Use \code{"smooth"} for clearance that
+#'   changes only next to \code{geom_gene()} and \code{geom_feature()} polygons,
+#'   or \code{"none"} for fixed spacing 0.035. Text and leader lines are ignored.
+#'   Supplying a number disables the automatic rule and uses that exact spacing.
+#'   Linear layouts reduce automatic baseline clearance to fit narrow channels;
+#'   an explicit gap or feature clearance that cannot fit raises an error.
+#' @param link_avoid One of \code{"uniform"} (default), \code{"none"}, or
+#'   \code{"smooth"}. Smooth avoidance changes clearance locally; uniform
+#'   avoidance uses one clearance across an endpoint.
+#' @inheritParams geom_link_line
+#' @param fill Optional fixed ribbon fill. `NULL` keeps the default Identity
+#'   mapping.
+#' @param alpha,colour,linewidth Standard fixed ribbon styles. Explicit values
+#'   take precedence over matching mappings; omitted defaults do not suppress
+#'   user mappings. For example, omit `alpha` when mapping `ribbon_alpha`.
+#' @param linetype Fixed outline line type. The default `NULL` uses solid
+#'   outlines for adjacent displayed sequences and dashed outlines for
+#'   non-adjacent sequences. Chord adjacency includes the first/last pair.
+#'   This follows the final display order, independently of alignment direction.
+#'   Explicit fixed styles or `aes(ribbon_linetype = ...)` (also
+#'   `aes(linetype = ...)`) replace the automatic styles. Use a matching scale
+#'   for data mappings; automatic styles do not train a linetype scale.
+#'   Global line-type mappings are used when `inherit.aes = TRUE`.
+#' @param adjacent_only Whether only neighbouring sequences are connected.
+#'   `NULL` uses TRUE in [coord_collinear()] and FALSE in [coord_chord()].
+#'   Set FALSE to retain cross-track ribbons. Chord neighbours include the
+#'   first/last sequence pair.
+#' @param pairs Optional data frame with `qaccver` and `saccver` selecting
+#'   unordered comparison pairs. With `adjacent_only = NULL`, explicit pairs
+#'   take precedence over the coordinate default. Omitted rows are reported
+#'   by [export_ggchord_layout()].
+#' @param position,show.legend,inherit.aes Standard ggplot2 layer arguments.
 #' @param ... Additional arguments passed to \code{geom_polygon()}
 #'
-#' @return A list of ggplot2 layers
+#' @return A ggplot2 layer.
 #' @export
 #'
 #' @examples
-#' library(ggchord)
+#' library(dplyr)
 #' data(seq_data_example)
+#' seqs <- seq_data_example |>
+#'   select(accver, length)
 #' data(ribbon_data_example)
-#' p <- ggchord(seq_data_example, ribbon_data_example) +
-#'   geom_seq() + geom_ribbon()
-#' p
-geom_ribbon <- function(mapping = NULL, data = NULL,
-                        ribbon_color_scheme = NULL,
-                        ribbon_colors = NULL,
-                        ribbon_color_by = NULL,
-                        ribbon_color_limits = NULL,
-                        ribbon_color_breaks = NULL,
-                        ribbon_color_name = NULL,
-                        ribbon_alpha = NULL,
-                        ribbon_alpha_by = NULL,
-                        ribbon_alpha_range = c(0.15, 0.9),
-                        ribbon_ctrl_point = NULL,
-                        ribbon_gap = NULL,
-                        alpha = NULL,
-                        ribbon_outline_color = "black",
-                        ribbon_outline_width = 0.05,
-                        ribbon_outline_linetype = 1,
-                        ribbon_outline_by = NULL,
-                        ribbon_outline_colors = NULL,
-                        ribbon_linetype_by = NULL,
-                        ribbon_linetypes = NULL,
-                        ribbon_direction = c("none", "alpha", "outline", "linetype"),
-                        ribbon_direction_colors = c(same = "black", reverse = "grey50"),
-                        ribbon_direction_linetypes = c(same = "solid", reverse = "dashed"),
-                        ribbon_direction_alpha = c(same = 1, reverse = 0.45),
-                        show_legend = TRUE,
-                        legend_position = "left",
-                        legend_key_width = NULL,
-                        legend_key_height = NULL,
+#' links <- ribbon_data_example |>
+#'   select(qaccver, saccver, qstart, qend, sstart, send)
+#' ggchord(seq_data = seqs, ribbon_data = links) +
+#'   geom_seq() +
+#'   geom_link_ribbon()
+geom_link_ribbon <- function(mapping = NULL, data = NULL,
+                        link_ctrl_point = NULL,
+                        link_gap = NULL,
+                        link_avoid = c("uniform", "none", "smooth"),
+                        link_branch = c("none", "query", "subject"),
+                        link_branch_fraction = 0.15,
+                        fill = NULL,
+                        alpha = 0.42,
+                        colour = "#59636D",
+                        linewidth = 0.08,
+                        linetype = NULL,
+                        adjacent_only = NULL,
+                        pairs = NULL,
+                        position = "identity",
+                        show.legend = TRUE,
+                        inherit.aes = FALSE,
                         ...) {
+  ribbon_ctrl_point <- link_ctrl_point
+  ribbon_gap <- link_gap
+  style_defaults <- c(colour = missing(colour), linewidth = missing(linewidth))
+  alpha_supplied <- !missing(alpha)
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
-
-  ribbon_alpha <- alpha %||% ribbon_alpha
-  ribbon_direction <- match.arg(ribbon_direction)
-
-  # Determine the fill aesthetic early: the real geometry is injected at build
-  # time, but the mapping must already use the correct data column.
-  scheme <- if (!is.null(ribbon_color_by)) "value" else ribbon_color_scheme %||% "pident"
-  outline_mapped <- !is.null(ribbon_outline_by) || identical(ribbon_direction, "outline")
-  linetype_mapped <- !is.null(ribbon_linetype_by) || identical(ribbon_direction, "linetype")
+  link_avoid <- match.arg(link_avoid)
+  link_branch <- match.arg(link_branch)
+  if (!is.null(adjacent_only) && (!is.logical(adjacent_only) ||
+      length(adjacent_only) != 1L || is.na(adjacent_only))) {
+    ggchord_stop("geom_link_ribbon(): adjacent_only must be NULL, TRUE or FALSE")
+  }
+  if (!is.null(pairs)) ggchord_require_columns(pairs,
+    c("qaccver", "saccver"), "geom_link_ribbon(pairs)")
+  ggchord_check_branch_fraction(link_branch_fraction)
+  mapping <- ggchord_normalize_mapping(mapping)
+  dots <- list(...)
+  if ("color" %in% names(dots)) style_defaults[["colour"]] <- FALSE
+  ggchord_reject_retired(dots, "geom_link_ribbon()", c(
+    ribbon_gap = "link_gap", ribbon_ctrl_point = "link_ctrl_point",
+    ribbon_color_scheme = "aes(ribbon_fill = ...) and scale_ribbon_fill_*()",
+    ribbon_colors = "scale_ribbon_fill_*()",
+    ribbon_color_by = "aes(ribbon_fill = ...)",
+    ribbon_color_limits = "scale_ribbon_fill_*(limits = ...)",
+    ribbon_color_breaks = "scale_ribbon_fill_*(breaks = ...)",
+    ribbon_color_name = "scale_ribbon_fill_*(name = ...)",
+    ribbon_alpha = "alpha",
+    ribbon_alpha_by = "aes(ribbon_alpha = ...)",
+    ribbon_alpha_range = "scale_ribbon_alpha_continuous(range = ...)",
+    ribbon_outline_color = "colour",
+    ribbon_outline_width = "linewidth",
+    ribbon_outline_linetype = "linetype",
+    ribbon_outline_by = "aes(ribbon_colour = ...)",
+    ribbon_outline_colors = "scale_ribbon_colour_manual(values = ...)",
+    ribbon_linetype_by = "aes(ribbon_linetype = ...)",
+    ribbon_linetypes = "scale_ribbon_linetype_manual(values = ...)",
+    ribbon_direction = "aes() with a direction column and a matching scale",
+    ribbon_direction_colors = "scale_ribbon_colour_manual(values = ...)",
+    ribbon_direction_linetypes = "scale_ribbon_linetype_manual(values = ...)",
+    ribbon_direction_alpha = "scale_ribbon_alpha_manual(values = ...)",
+    show_legend = "show.legend",
+    legend_position = "guides(ribbon_fill = guide_ggchord_colourbar(position = ...))",
+    legend_key_width = "guide_ggchord_colourbar(barwidth = ...)",
+    legend_key_height = "guide_ggchord_colourbar(barheight = ...)"
+  ))
+  alias <- ggchord_colour_alias(colour, dots, "geom_link_ribbon()", sys.call())
+  colour <- alias$colour
+  dots <- alias$dots
+  outline_mapped <- !is.null(mapping) && "ribbon_colour" %in% names(mapping)
+  linetype_mapped <- !is.null(mapping) && "ribbon_linetype" %in% names(mapping)
+  plain_linetype_mapped <- !is.null(mapping) && "linetype" %in% names(mapping)
+  if (linetype_mapped && plain_linetype_mapped) ggchord_stop(
+    "geom_link_ribbon(): map only one of linetype and ribbon_linetype"
+  )
+  automatic_linetype <- is.null(linetype) &&
+    !linetype_mapped && !plain_linetype_mapped
 
   empty_polys <- data.frame(
     x = numeric(0), y = numeric(0),
@@ -175,69 +174,109 @@ geom_ribbon <- function(mapping = NULL, data = NULL,
     stringsAsFactors = FALSE
   )
 
-  if (scheme == "pident") {
-    fill_mapping <- aes(fill = pident)
-  } else if (scheme == "value") {
-    fill_mapping <- aes(fill = value)
-  } else {
-    fill_mapping <- aes(fill = fill)
+  mapping_base <- ggplot2::aes(x = x, y = y, group = group, ribbon_alpha = alpha)
+  if (is.null(fill)) mapping_base[["ribbon_fill"]] <- as.name("pident")
+  if (isTRUE(outline_mapped)) mapping_base[["ribbon_colour"]] <- as.name("outline_col")
+  if (isTRUE(linetype_mapped)) mapping_base[["ribbon_linetype"]] <- as.name("linetype_val")
+  if (automatic_linetype) {
+    # A per-ribbon geom default must not add categories to another layer's
+    # mapped scale. Explicit mappings replace this ordinary AsIs aesthetic.
+    mapping_base[["linetype"]] <- ggplot2::aes(linetype = I(linetype_val))[["linetype"]]
   }
 
-  mapping_base <- aes(x = x, y = y, group = group, alpha = alpha)
-  mapping_base[["fill"]] <- fill_mapping$fill
-  if (isTRUE(outline_mapped)) mapping_base[["zoutline"]] <- as.name("outline_col")
-  if (isTRUE(linetype_mapped)) mapping_base[["zlinetype"]] <- as.name("linetype_val")
-
-  outline_params <- list()
-  if (!outline_mapped) {
-    if (!is.null(ribbon_outline_color)) outline_params$colour <- ribbon_outline_color
-    if (!is.null(ribbon_outline_linetype)) outline_params$linetype <- ribbon_outline_linetype
+  fixed <- list(linewidth = linewidth)
+  if (alpha_supplied) fixed$ribbon_alpha <- alpha
+  if (!is.null(fill)) fixed$ribbon_fill <- fill
+  if (outline_mapped) fixed$ribbon_colour <- colour else fixed$colour <- colour
+  if (!is.null(linetype)) {
+    if (linetype_mapped) fixed$ribbon_linetype <- linetype else fixed$linetype <- linetype
   }
-  if (!is.null(ribbon_outline_width)) outline_params$linewidth <- ribbon_outline_width
+  if (outline_mapped) names(style_defaults)[names(style_defaults) == "colour"] <- "ribbon_colour"
 
   lyr <- ggplot2::layer(
     data        = empty_polys,
     mapping     = mapping_base,
     stat        = "identity",
     geom        = make_ribbon_geom(outline = outline_mapped, linetype = linetype_mapped),
-    position    = "identity",
-    show.legend = if (identical(show_legend, TRUE)) {
-                    c(fill = TRUE, colour = FALSE, linetype = FALSE)
-                  } else show_legend,
-    inherit.aes = FALSE,
+    position    = position,
+    show.legend = if (identical(show.legend, TRUE)) {
+                    c(ribbon_fill = TRUE, ribbon_colour = FALSE,
+                      ribbon_linetype = FALSE)
+                  } else show.legend,
+    inherit.aes = inherit.aes,
     check.aes   = FALSE,
     check.param = FALSE,
     key_glyph   = key_glyph_ribbon,
-    params      = c(list(...), outline_params)
+    params      = c(dots, fixed)
   )
   lyr$ggchord_type <- "ribbon"
   lyr$ggchord_params <- list(
     type                      = "ribbon",
-    ribbon_color_scheme       = ribbon_color_scheme,
-    ribbon_colors             = ribbon_colors,
-    ribbon_color_by           = ribbon_color_by,
-    ribbon_color_limits       = ribbon_color_limits,
-    ribbon_color_breaks       = ribbon_color_breaks,
-    ribbon_color_name         = ribbon_color_name,
-    ribbon_alpha              = ribbon_alpha,
-    ribbon_alpha_by           = ribbon_alpha_by,
-    ribbon_alpha_range        = ribbon_alpha_range,
+    style_defaults = style_defaults,
+    adjacent_only = adjacent_only, pairs = pairs,
+    link_avoid = link_avoid, link_branch = link_branch, link_branch_fraction = link_branch_fraction,
+    ribbon_color_scheme       = "pident",
+    ribbon_colors             = NULL,
+    ribbon_color_by           = NULL,
+    ribbon_color_limits       = NULL,
+    ribbon_color_breaks       = NULL,
+    ribbon_color_name         = NULL,
+    ribbon_alpha              = alpha,
+    ribbon_alpha_by           = NULL,
+    ribbon_alpha_range        = c(0.15, 0.9),
     ribbon_ctrl_point         = ribbon_ctrl_point,
     ribbon_gap                = ribbon_gap,
-    ribbon_outline_color      = ribbon_outline_color,
-    ribbon_outline_width      = ribbon_outline_width,
-    ribbon_outline_linetype   = ribbon_outline_linetype,
-    ribbon_outline_by         = ribbon_outline_by,
-    ribbon_outline_colors     = ribbon_outline_colors,
-    ribbon_linetype_by        = ribbon_linetype_by,
-    ribbon_linetypes          = ribbon_linetypes,
-    ribbon_direction          = ribbon_direction,
-    ribbon_direction_colors   = ribbon_direction_colors,
-    ribbon_direction_linetypes = ribbon_direction_linetypes,
-    ribbon_direction_alpha    = ribbon_direction_alpha,
-    legend_position           = legend_position,
-    legend_key_width          = legend_key_width,
-    legend_key_height         = legend_key_height
+    ribbon_outline_color      = colour,
+    ribbon_outline_width      = linewidth,
+    ribbon_outline_linetype   = linetype,
+    ribbon_outline_by         = NULL,
+    ribbon_outline_colors     = NULL,
+    ribbon_linetype_by        = NULL,
+    ribbon_linetypes          = NULL,
+    ribbon_direction          = "none",
+    ribbon_direction_colors   = NULL,
+    ribbon_direction_linetypes = NULL,
+    ribbon_direction_alpha    = NULL,
+    legend_position           = NULL,
+    legend_key_width          = NULL,
+    legend_key_height         = NULL
   )
-  list(lyr)
+  lyr <- ggchord_capture_layer_input(
+    lyr, data, mapping,
+    c("qaccver", "saccver", "length", "pident", "qstart", "qend",
+      "sstart", "send")
+  )
+  lyr
+}
+
+# Plot mappings are not available when a layer is constructed. For an
+# explicitly inheriting ribbon, resolve its line type before binding data so
+# the automatic AsIs default does not mask an inherited ggplot2 mapping.
+ggchord_inherit_ribbon_linetype <- function(layer, mapping) {
+  if (!identical(layer$ggchord_type, "ribbon") ||
+      !isTRUE(layer$inherit.aes) ||
+      !is.null(layer$ggchord_params$ribbon_outline_linetype) ||
+      any(c("linetype", "ribbon_linetype") %in%
+        names(layer$ggchord_input_mapping))) return(layer)
+  inherited <- intersect(c("linetype", "ribbon_linetype"), names(mapping))
+  if (!length(inherited)) return(layer)
+  if (length(inherited) > 1L) ggchord_stop(
+    "geom_link_ribbon(): map only one of linetype and ribbon_linetype"
+  )
+  # Clone the layer so preparing a plot never stores an inherited mapping on
+  # the original reusable layer or a later plot with another global mapping.
+  layer <- reconstruct_layer(layer, layer$data)
+  layer$mapping$linetype <- NULL
+  input_mapping <- layer$ggchord_input_mapping %||% ggplot2::aes()
+  input_mapping[[inherited]] <- mapping[[inherited]]
+  layer$ggchord_input_mapping <- input_mapping
+  if (identical(inherited, "ribbon_linetype")) {
+    draw_key <- layer$geom$draw_key
+    layer$geom <- make_ribbon_geom(
+      outline = "ribbon_colour" %in% names(layer$geom$default_aes),
+      linetype = TRUE
+    )
+    layer$geom$draw_key <- draw_key
+  }
+  layer
 }
