@@ -36,6 +36,15 @@ coord transform. Native data units are not millimetres or genomic bp.
 
 \section{Coordinate-specific tables}{
 
+\code{source_registry} identifies constructor source rows without adding reserved
+columns to user data. \code{layer_sources} maps annotation \code{input_row} to its
+source ID, table and row; geometry \code{source_row} still indexes the resolved
+layer input. Default annotation layers share constructor source IDs. Explicit
+layer tables and data functions have layer-local scope; content equality is
+not used to guess shared identity. IDs are local to the plot, not persistent
+file identifiers. \code{annotation_duplicates} reports constructor annotations
+rendered by more than one geometry layer; labels do not count as duplicates.
+
 Circular \code{annotation_registry} retains its documented identity, owner,
 component/source row, inner track/radius/width/boundaries, outer region,
 sector, band, dominant band, slot, spill reason, crossing count, bounding box
@@ -62,6 +71,21 @@ minimum/final sizes in mm and fallback/hiding reasons. Empty diagnostic
 tables need not have a fixed column prototype.
 }
 
+\section{Dotplot and radial frames}{
+
+Dotplot \code{axis_layout} records one frame per axis/accession with length,
+offset, direction, source origin and native unit. Display gaps have no source
+mapping. \code{alignment} retains all four HSP positions; it is not a fine-grained
+alignment trace. A declared unknown direction is omitted and reported.
+Radial \code{radial_frames} exposes local tangent/normal vectors, angle and inner
+radius. \code{radial_endpoints} retains both original positions and ordered closed
+interval boundaries, with their final endpoint coordinates. Position mapping
+uses one-based native positions; interval fronts use \verb{[min-1,max]} boundaries.
+Radial adjacency is cyclic display topology, never biological closure or
+evidence of a missing relationship. Native track statistics remain computed
+before instance replication and view projection.
+}
+
 \section{Measurement and cache scope}{
 
 \code{render_context} and diagnostic \code{measurement} distinguish \code{estimated},
@@ -73,6 +97,14 @@ describe refinement accuracy separately from panel measurement. Estimated
 contexts can have missing dimensions and convergence. Device/basis/font
 conditions state the source and limits of the evidence. Refinement counts
 and private solver/candidate/cache structures are implementation details.
+
+With \code{\link[=adapt_ggchord]{adapt_ggchord()}}, layout-only exports report \code{adaptive_layout$policy}
+and mark the guide layout as \code{target_device_required}. Target-size diagnostics
+instead report effective theme styles, scale factors and a \code{guide_layout}
+with selected grids, explicit locks, candidate sizes and final guide-box
+bounds in mm. Search indices and scores are diagnostic details, not stable
+biological identifiers. A feasible guide budget is not a global collision
+certificate. Fusion exposes these reports separately for each panel.
 
 A plot composition owns a fresh layout cache; a build/getter may populate
 it. Device/context changes invalidate estimates, even for ordinary labels.
@@ -102,6 +134,31 @@ A measured panel does not certify collision-free geometry, font embedding,
 fallback, arbitrary grobs or cross-application portability. Preview paths
 live in a temporary directory and may be removed by cleanup; use ordinary
 \code{\link[ggplot2:ggsave]{ggplot2::ggsave()}} to keep a final file.
+\code{label_quality} adds measured panel text/annotation-leader contacts, source
+visibility counts and text/leader tables. Oriented boxes and leader lengths
+use mm; arc glyphs share a text-object identity. Counts are evidence within
+the stated scope, not exact ink outlines or a certificate for text-feature
+contacts, custom grobs or external plot decorations. Unchecked metrics stay
+missing, and diagnostics do not change the layout or its original records.
+}
+
+\section{Foundation projection and identity}{
+
+\code{display_instances} separates source accver from instance_id and display
+order. \code{instance_routing} identifies each source HSP and its unique query/
+subject display route. Explicit source_hsp_id is shared across layers;
+absent IDs are layer-local. Routing \code{retained} records whether a relation
+survives geometry selection; \code{repeated_display} and repeated-ID checks use
+only retained source observations, including ordinary views without copies.
+\code{sequence_display} records source_length,
+display_length and display_scale_factor; equal allocation changes only the
+display projection. Vertical Collinear uses final y as its inverse axis.
+Sankey instances additionally record left/right side; query is always left.
+\code{track_statistics} retains computed values and source_rows before display
+replication; \code{track_source_data} is included with original_data=TRUE.
+\code{label_visibility} reports layer/component/source_row, visibility, policy
+reason, final position and size, and available perimeter/crossing fields.
+An unavailable collision field is NA, never evidence of zero collisions.
 }
 
 \examples{

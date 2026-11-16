@@ -194,6 +194,9 @@ ggchord_focus_feature_parts <- function(row, lo, hi, origin, caller) {
 #' Segmented annotations, cleavage positions and cached feature runs are
 #' cropped and relocated together. Source intervals, source origins and
 #' genomic left/right truncation flags are retained on the returned tables.
+#' An optional `sequence` column must contain non-missing strings matching
+#' each input length. It is cropped with integer locus boundaries, preserving
+#' character order and case; focusing does not reverse-complement strings.
 #' Alignment cropping is a linear display projection, not a new alignment:
 #' identity is retained, and a scaled alignment length is marked as estimated.
 #'
@@ -211,6 +214,7 @@ ggchord_focus_feature_parts <- function(row, lo, hi, origin, caller) {
 #'   truncated output rows. `.source_origin` is the original genomic position
 #'   corresponding to local position one, including after repeated focusing.
 #' @seealso \code{\link{ggchord_data_contract}}
+#' @param feature_data Unified annotation input; mutually exclusive with gene_data.
 #' @export
 focus_ggchord_data <- function(
     seq_data,
@@ -218,7 +222,18 @@ focus_ggchord_data <- function(
     gene_data = NULL,
     loci,
     expand = 0,
-    boundary = c("trim", "drop")) {
+    boundary = c("trim", "drop"), feature_data = NULL) {
+  if (!is.null(feature_data)) {
+    if (!is.null(gene_data)) ggchord_stop("Supply only feature_data or gene_data")
+    features <- ggchord_normalize_feature_input(feature_data)
+    result <- focus_ggchord_data(seq_data, ribbon_data, features, loci, expand, boundary)
+    result$feature_data <- result$gene_data
+    result$gene_data <- NULL
+    if (is.data.frame(result$report) && "component" %in% names(result$report))
+      result$report$component[result$report$component == "gene"] <- "feature"
+    return(result)
+  }
+
   seq_data <- ggchord_normalize_accver(seq_data)
   gene_data <- ggchord_normalize_accver(gene_data)
   loci <- ggchord_normalize_accver(loci)
@@ -246,6 +261,16 @@ focus_ggchord_data <- function(
   seq_out$.locus_row <- focus$.locus_row
   seq_out$accver <- focus$.output_accver
   seq_out$length <- focus$.focus_end - focus$.focus_start + 1
+  if ("sequence" %in% names(seq_data)) {
+    characters <- seq_data$sequence
+    if (!is.character(characters) || anyNA(characters) ||
+        any(nchar(characters, type = "chars") != seq_data$length))
+      ggchord_stop(caller, ": sequence strings must match input lengths")
+    if (any(focus$.focus_start != floor(focus$.focus_start)) ||
+        any(focus$.focus_end != floor(focus$.focus_end)))
+      ggchord_stop(caller, ": sequence strings require integer locus boundaries")
+    seq_out$sequence <- substring(characters[seq_index], focus$.focus_start, focus$.focus_end)
+  }
 
   gene_out <- NULL
   gene_kept <- ribbon_kept <- integer()

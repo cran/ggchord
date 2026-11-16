@@ -15,8 +15,11 @@ export_ggchord_layout(
 
 \item{include}{Character vector selecting any of \code{"seq"},
 \code{"ribbon"}, \code{"gene"}, \code{"feature"}, \code{"labels"},
-\code{"link"}, \code{"restriction"}, \code{"track"}, and \code{"axis"}. Point links and
-restriction sites require explicit selection.}
+\code{"alignment"}, \code{"link"}, \code{"restriction"}, \code{"track"}, and \code{"axis"}. Point links and
+restriction sites require explicit selection.
+Dotplots default to \code{alignment} and \code{axis}; \code{axis_layout} contains reversible
+axis offsets, directions and source origins. Alignment exports retain all four
+endpoints, layer identity and source row; omissions appear in \code{connection_report}.}
 
 \item{original_data}{Logical. Include the resolved per-layer input tables
 under \code{original_data}, default \code{FALSE}.}
@@ -31,10 +34,11 @@ count, slot, bounding box and leader corridor.
 Explicitly inside primer and restriction callouts
 register measured inner boxes rather than exterior bands or slots.
 The \code{metadata} member
-records rotation, aspect ratio, limits, coordinate units and
+records rotation, aspect ratio, limits, native \code{sequence_unit} (bp/aa), and
 transformation state.
 Collinear layouts instead include \code{sequence_layout}, containing each
-sequence's horizontal range, backbone y, orientation, units per bp,
+sequence's horizontal range, backbone y, orientation, \code{units_per_position},
+and \code{sequence_unit}. The compatibility field \code{units_per_bp} is NA for aa. It also records
 reversible x offset, anchor and source origin. \code{orientation_diagnostics}
 records directional support, confidence and unresolved cases.
 Position lanes remain local offsets and are not circular physical tracks.
@@ -60,6 +64,10 @@ Explicit label shrinking adds \code{label_fit_diagnostics}, preserving original
 text, requested/minimum/final sizes and fallback or hiding reasons.
 \code{render_context} distinguishes layout-only estimates from actual panel
 measurements. For a target-size measured report use \code{\link[=diagnose_ggchord]{diagnose_ggchord()}}.
+\code{source_registry} and \code{layer_sources} retain constructor and per-layer
+annotation identities without overwriting user columns. Explicit layer
+tables/functions have layer-local source scope. \code{annotation_duplicates}
+reports shared constructor rows drawn by multiple geometry layers.
 }
 \description{
 Builds a ggchord plot and returns selected computed geometry in a stable,
@@ -71,6 +79,26 @@ This is the recommended interface for consuming layout tables;
 Both retain their documented fields. See \link{ggchord_layout_contract} for
 units, provenance and stability boundaries.
 }
+\section{New coordinate fields}{
+
+Radial synteny layouts include \code{radial_frames} (tangent/normal, angle,
+local origin and inner radius; theta is in radians) and \code{radial_endpoints} (full HSP fronts).
+Metadata records cyclic adjacency, display rotation and closed one-based
+interval boundaries; these never imply a biological sequence closure.
+Dotplots include independent \code{axis_layout} frames and original endpoint
+rows under \code{alignment}; axis selection and unknown directions appear in
+\code{connection_report}.
+}
+
+\section{Ribbon drawing}{
+
+\code{ribbon_rendering} records per-layer fill/tip mode. Exported polygon fronts
+retain the full source intervals. An optional subject tip is decorative;
+its shoulder translates the target endpoint span to 88 percent of the
+channel. Continuous fills use a device-resolved raster mesh and vector
+outlines. A bounded fill budget warns when dense layers reduce resolution.
+}
+
 \examples{
 library(dplyr)
 library(ggchord)

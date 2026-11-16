@@ -238,14 +238,16 @@ read_blast_single <- function(file, format = c("auto", "outfmt6", "outfmt7", "cu
 #'
 #' Both `file` and `files` accept literal path vectors or wildcard patterns.
 #' Repeated resolved paths are read once, in first-occurrence order.
-#' Standard `-outfmt 6` and `-outfmt 7` use the default 12 tabular fields;
-#' the historical extended 17-column format is optional. Omitting `-outfmt`
+#' Standard `-outfmt 6` and `-outfmt 7` use the default 12 tabular fields.
+#' Omitting `-outfmt`
 #' entirely produces pairwise text, which this tabular reader does not parse.
 #'
 #' The reader also parses BLASTp tabular output. It preserves the producer's
 #' numeric endpoints and does not infer or convert amino-acid/nucleotide units.
-#' Protein intervals require an explicit CDS projection before genomic plotting;
-#' reading a protein HSP does not establish an ungapped nucleotide correspondence.
+#' Supply complete protein lengths with `sequence_unit = "aa"` for native
+#' protein plots. Protein intervals require an explicit CDS projection for
+#' plotting on a nucleotide genome. Reading a protein HSP does not establish
+#' an ungapped nucleotide correspondence.
 #' See [project_ggchord_features()] and [project_ggchord_links()].
 #'
 #' @param file Optional path vector or glob patterns; read before `files`.
@@ -415,7 +417,7 @@ read_gff3_single <- function(file, feature_types = "CDS",
 #'   `"CDS"`.
 #' @param anno_from Character vector of GFF3 attribute keys, tried in order to
 #'   fill the `anno` column.
-#' @param unstranded `"plus"` (legacy default) assigns unknown strands to `+`;
+#' @param unstranded `"plus"` (the default) assigns unknown strands to `+`;
 #'   `"drop"` removes them. Use `"keep"` with [geom_feature()] to retain them
 #'   as nondirectional `.` intervals. `source_strand` always records the input.
 #' @param source_file Logical. Add a `.source_file` column when reading one or
@@ -483,7 +485,7 @@ gff3_percent_decode <- function(x) {
 
 # Internal single-file reader; the public read_fasta_lengths() wrapper
 # resolves `file` / `files` and combines the result.
-read_fasta_lengths_single <- function(file, header_delim = NULL) {
+read_fasta_lengths_single <- function(file, header_delim = NULL, keep_sequence = FALSE) {
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
@@ -524,6 +526,12 @@ read_fasta_lengths_single <- function(file, header_delim = NULL) {
   out <- data.frame(accver = ids, length = as.numeric(lens),
                     .source_line = header_pos,
                     stringsAsFactors = FALSE)
+  if (keep_sequence) {
+    out$sequence <- vapply(seq_along(header_pos), function(i) {
+      if (starts[i] > ends[i]) return("")
+      paste0(gsub("[[:space:]]+", "", lines[starts[i]:ends[i]]), collapse = "")
+    }, character(1))
+  }
   dup <- unique(ids[duplicated(ids)])
   if (length(dup) > 0) {
     warning("read_fasta_lengths(): duplicate sequence IDs found: ",
@@ -546,7 +554,18 @@ read_fasta_lengths_single <- function(file, header_delim = NULL) {
 #' @param source_file Logical. Add a `.source_file` column when reading one or
 #'   more files, default `FALSE`.
 #'
-#' @return A data.frame with columns `accver` and `length`.
+#' @param sequence_unit Optional `"bp"` or `"aa"` declaration. When supplied,
+#'   adds that column to the result; the alphabet is not inferred. Omitted
+#'   units retain the existing output columns and ggchord interprets them as bp.
+#'
+#' @param keep_sequence Logical, default `FALSE`. Also retain the actual FASTA
+#'   characters in `sequence`, removing whitespace only and preserving case.
+#'   No alphabet, reverse complement or alignment columns are inferred. Gap
+#'   characters, if present, are counted in `length`; gapped input needs an
+#'   explicit alignment-to-source map before genomic use.
+#'
+#' @return A data.frame with columns `accver` and `length`, plus
+#'   `sequence_unit` and `sequence` when explicitly requested.
 #'   A `ggchord_import` attribute records files and per-file output row counts.
 #' @seealso \code{\link{ggchord_data_contract}}
 #' @export
@@ -558,15 +577,23 @@ read_fasta_lengths_single <- function(file, header_delim = NULL) {
 #' source <- read_fasta_lengths("examples/fasta/MT108731.1.fna")
 #' seqs <- source |>
 #'   select(accver, length)
+#' characters <- read_fasta_lengths(
+#'   "examples/fasta/MT108731.1.fna", keep_sequence = TRUE
+#' )
 #' }
 read_fasta_lengths <- function(file = NULL, files = NULL, header_delim = NULL,
-                               source_file = FALSE) {
+                               source_file = FALSE, sequence_unit = NULL,
+                               keep_sequence = FALSE) {
+  if (!is.logical(keep_sequence) || length(keep_sequence) != 1L || is.na(keep_sequence))
+    ggchord_stop("read_fasta_lengths(): keep_sequence must be TRUE or FALSE")
+  if (!is.null(sequence_unit)) sequence_unit <- match.arg(sequence_unit, c("bp", "aa"))
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
   paths <- ggchord_resolve_files(file, files, "read_fasta_lengths")
   out <- lapply(paths, function(f) {
-    data <- read_fasta_lengths_single(f, header_delim = header_delim)
+    data <- read_fasta_lengths_single(f, header_delim = header_delim, keep_sequence = keep_sequence)
+    if (!is.null(sequence_unit)) data$sequence_unit <- sequence_unit
     ggchord_add_source_file(data, f, source_file)
   })
   res <- ggchord_rbind_fill(out)

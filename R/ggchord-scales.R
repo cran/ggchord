@@ -19,10 +19,12 @@ make_ggchord_scales <- function(layout, has_seq = FALSE, has_gene = FALSE,
   )
   role_guide <- function(role, colourbar = FALSE, order = 0,
                          override.aes = list()) {
+    labels <- switch(role, seq=layout$legend_seq_labels %||% layout$seq_labels,
+      gene=names(layout$gene_pal), feature=layout$final_gene_order, region=names(layout$region_pal), NULL)
     if (!is.null(plot)) {
       return(ggchord_role_guide(
         plot, role, colourbar = colourbar, order = order,
-        override.aes = override.aes
+        override.aes = override.aes, labels=labels
       ))
     }
     if (colourbar) {
@@ -38,9 +40,9 @@ make_ggchord_scales <- function(layout, has_seq = FALSE, has_gene = FALSE,
   if (has_seq) {
     scales[[length(scales) + 1]] <- scale_seq_colour_manual(
       name   = "Seq ID",
-      values = layout$seq_colors,
-      labels = layout$seq_labels,
-      breaks = layout$seqs,
+      values = layout$legend_seq_colors %||% layout$seq_colors,
+      labels = layout$legend_seq_labels %||% layout$seq_labels,
+      breaks = layout$legend_seqs %||% layout$seqs,
       guide  = role_guide("seq", order = 1)
     )
   }
@@ -64,14 +66,14 @@ make_ggchord_scales <- function(layout, has_seq = FALSE, has_gene = FALSE,
       ribbon_breaks <- if (value_scheme) {
         layout$ribbon_color_breaks %||% pretty(ribbon_limits, n = 5)
       } else {
-        c(0, 50, 80, 90, 100)
+        c(0, 50, 80, 90, 95, 100)
       }
       ribbon_fill_scale <- scale_ribbon_fill_stepsn(
         name    = ribbon_name,
         colours = layout$ribbon_colors,
         limits  = ribbon_limits,
         breaks  = ribbon_breaks,
-        guide   = role_guide("ribbon", colourbar = TRUE, order = 2)
+        guide   = if (!value_scheme) ggchord_identity_guide(plot) else role_guide("ribbon", colourbar = TRUE, order = 2)
       )
     } else {
       ribbon_fill_scale <- scale_ribbon_fill_identity()
@@ -81,12 +83,10 @@ make_ggchord_scales <- function(layout, has_seq = FALSE, has_gene = FALSE,
   gene_fill_scale <- NULL
   if (has_gene) {
     if (layout$gene_color_scheme == "strand") {
-      strand_breaks <- intersect(
-        c("+", "-"), unique(as.character(layout$gene_polys$strand))
-      )
-      if (length(strand_breaks) == 0L) strand_breaks <- c("+", "-")
+      strand_breaks <- c("+", "-")
       gene_fill_scale <- scale_gene_fill_manual(
         name   = "Strand",
+        limits = strand_breaks,
         breaks = strand_breaks,
         values = layout$gene_pal,
         guide  = role_guide("gene", order = 3,
@@ -257,7 +257,8 @@ ggchord_mapping_info <- function(plot, aesthetic) {
     )
   }
   values <- unlist(lapply(infos, `[[`, "value"), use.names = FALSE)
-  list(kind = kinds, values = values, label = infos[[1L]]$label)
+  list(kind = kinds, values = values, label = infos[[1L]]$label,
+    labels = unique(vapply(infos, `[[`, character(1), "label")))
 }
 
 #' Replace managed defaults when an explicit mapping needs another scale type
@@ -271,6 +272,9 @@ ggchord_infer_visual_scales <- function(plot, layout, scales) {
     if (plot$scales$has_scale(aesthetic)) next
     info <- ggchord_mapping_info(plot, aesthetic)
     if (is.null(info)) next
+    if (identical(aesthetic, "ribbon_fill") && info$kind == "continuous" &&
+        identical(layout$ribbon_color_scheme, "pident") &&
+        all(info$labels == "pident")) next
     scales <- Filter(function(s) !aesthetic %in% s$aesthetics, scales)
     if (info$kind == "discrete") {
       levels <- unique(as.character(info$values))
@@ -339,8 +343,14 @@ ggchord_infer_visual_scales <- function(plot, layout, scales) {
     if (!is.null(role)) {
       scale$guide <- ggchord_role_guide(
         plot, role, colourbar = identical(aesthetic, "ribbon_fill") &&
-          identical(info$kind, "continuous")
+          identical(info$kind, "continuous"),
+        labels=if(identical(info$kind,"discrete")) unique(as.character(info$values)) else NULL
       )
+    }
+    if (identical(info$kind, "continuous") && all(info$labels == "pident")) {
+      scale$name <- "Identity (%)"
+      scale$limits <- c(0, 100)
+      scale$breaks <- c(0, 50, 80, 90, 95, 100)
     }
     scales[[length(scales) + 1L]] <- scale
   }

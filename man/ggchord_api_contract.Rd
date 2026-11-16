@@ -2,10 +2,10 @@
 % Please edit documentation in R/api-contract.R
 \name{ggchord_api_contract}
 \alias{ggchord_api_contract}
-\title{Candidate API and migration contract}
+\title{Current API and migration contract}
 \description{
-The v0.16.4 API candidate consolidates the plotting, data and output contracts
-established in v0.16.1--v0.16.3. Candidate freezing is a development baseline,
+The current development API defines plotting, data and output contracts.
+The v0.16.4 candidate freeze is a historical development baseline,
 not a claim of v1.0.0 compatibility or complete platform/device validation.
 Correctness fixes remain possible with documented evidence and migration.
 }
@@ -27,10 +27,13 @@ Gene/feature widths use \code{width}, label controls use \verb{label_*}, and poi
 links use \code{link_gap} and \code{link_ctrl_point}. These names do not merge the
 distinct geometries or their defaults.
 
-Chord, circular and collinear remain separate coordinate modes. Circular
-maps reject inter-sequence links; collinear maps reject circular-only
+Chord, collinear, radial synteny, Sankey, circular and Dotplot are six
+coordinate modes. Fusion composes independently registered plots and is not
+a coordinate mode. Dotplot requires its dedicated alignment segment layer
+and is not a registered Fusion endpoint. Circular
+maps reject ribbon and point-link layers; collinear maps reject
 restriction/primer/centre-label layers. \code{geom_seq_scale()} is a collinear
-bp reference bar; \code{\link[=scale_seq_position_continuous]{scale_seq_position_continuous()}} configures genomic axes.
+sequence-unit reference bar; \code{\link[=scale_seq_position_continuous]{scale_seq_position_continuous()}} configures genomic axes.
 A matching name never implies that every geom supports every coord.
 }
 
@@ -70,7 +73,8 @@ that a similarly named replacement parameter exists.
 
 Input \code{accver} and query/subject identifiers are preserved without adding or
 removing versions. Biological strand, display orientation and link direction
-remain distinct. Coordinates are one-based inclusive bp after explicit
+remain distinct. Coordinates are one-based inclusive in the declared native
+bp or aa units after explicit
 external-format adaptation. Missing values, defaults and \code{NULL} are defined
 per responsibility, not by one package-wide coercion rule.
 Standalone cleaning defaults to sorting reversed endpoints; preparation
@@ -78,7 +82,7 @@ retains direction by default. Readers retain \code{file}/\code{files} with share
 path expansion. See \link{ggchord_data_contract} for source rows, optional
 dependencies, transformations, aggregation estimates and search limits.
 
-Native layout distances, bp, angles, numerical track domains and physical
+Native layout distances, sequence units, angles, numerical track domains and physical
 mm are separate quantities. Track IDs share numerical domains and consistent
 band declarations; their physical placement is not a numeric value scale.
 Existing documented return members remain supported. Prefer

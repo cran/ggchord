@@ -6,7 +6,10 @@ ggchord_device_scale <- function(device_inches = NULL,
                                  reference = c(width = 8, height = 6),
                                  limits = c(0.5, 1.6)) {
   if (is.null(device_inches)) {
-    device_inches <- if (grDevices::dev.cur() == 1L) {
+    available <- ggchord_render_context()$available_canvas_mm
+    device_inches <- if (length(available) == 2L && all(is.finite(available))) {
+      available / 25.4
+    } else if (grDevices::dev.cur() == 1L) {
       c(NA_real_, NA_real_)
     } else tryCatch(
       grDevices::dev.size("in"), error = function(e) c(NA_real_, NA_real_)
@@ -119,12 +122,54 @@ guide_ggchord_colourbar <- function(
     )
   )
   if (!is.null(theme)) compact <- compact + theme
-  ggplot2::guide_colourbar(
+  native <- ggplot2::guide_colourbar(
     title = title, theme = compact, nbin = nbin, display = display,
     alpha = alpha, draw.ulim = draw.ulim, draw.llim = draw.llim,
     angle = angle, position = position, direction = direction,
     reverse = reverse, order = order, available_aes = available_aes, ...
   )
+  ggchord_colourbar_dimensions(native, theme, size_scale)
+}
+
+# Resolve automatic dimensions after ggplot2 knows the final guide direction.
+# A constructor cannot infer a later theme(legend.position = "bottom").
+ggchord_colourbar_dimensions <- function(native, user_theme, size_scale) {
+  override <- native$override_elements
+  ggplot2::ggproto(NULL, native,
+    override_elements = function(params, elements, theme) {
+      elements <- override(params, elements, theme)
+      horizontal <- identical(params$direction, "horizontal")
+      long <- if(horizontal) "width" else "height"
+      short <- if(horizontal) "height" else "width"
+      measured <- elements$text
+      labels <- params$key$.label
+      positions <- as.numeric(params$key$.value)
+      if(length(positions) && any(abs(positions)>1,na.rm=TRUE))
+        positions <- positions / params$nbin
+      required <- 0
+      if(length(labels)>1 && !inherits(measured,"element_blank")) {
+        extents <- vapply(seq_along(labels),function(i) {
+          g <- grid::textGrob(labels[i],rot=measured@angle %||% 0,
+            gp=grid::gpar(fontsize=measured@size %||% 8,
+              fontfamily=measured@family %||% "",fontface=measured@face %||% "plain"))
+          if(horizontal) grid::convertWidth(grid::grobWidth(g),"mm",TRUE) else
+            grid::convertHeight(grid::grobHeight(g),"mm",TRUE)
+        },numeric(1))
+        order <- order(positions); gaps <- diff(positions[order]); valid <- is.finite(gaps) & gaps>0
+        needs <- ((head(extents[order],-1)+tail(extents[order],-1))/2+1.2)/gaps
+        if(any(valid))required <- max(needs[valid],na.rm=TRUE)
+      }
+      for(axis in c(long,short)) {
+        requested <- user_theme[[paste0("legend.key.",axis)]] %||% user_theme$legend.key.size
+        if(is.null(requested)) {
+          value <- if(axis==long) max(50*size_scale,required) else 3.6*size_scale
+          elements[[paste0("key_",axis)]] <- grid::unit(value,"mm")
+          elements[[paste0(axis,"_cm")]] <- value/10
+          elements[[paste0("stretch_",if(axis=="width")"x" else "y")]] <- FALSE
+        }
+      }
+      elements
+    })
 }
 
 #' @rdname guide_ggchord_legend
@@ -143,13 +188,14 @@ ggchord_role_guide_spec <- function(plot, role, colourbar = FALSE) {
   # takes precedence, including an ordinary theme(legend.position = ...).
   default_position <- if (identical(role, "ribbon")) "left" else "right"
   resolved_position <- item$position %||% common$position %||%
-    default_position
+    plot$theme$legend.position %||% default_position
   global_position <- common$position %||% plot$theme$legend.position
   hidden <- identical(global_position, "none") || isTRUE(item$hidden) ||
     identical(item$position, "none")
   if (hidden) return(list(hidden = TRUE))
 
-  size_scale <- ggchord_device_scale()
+  size_scale <- if (is.null(plot$ggchord$layout_policy)) ggchord_device_scale() else
+    plot$ggchord$adaptive_report$spacing_factor %||% 1
   field_map <- c(
     background = "legend.background", key = "legend.key",
     key.size = "legend.key.size", key.width = "legend.key.width",
@@ -188,7 +234,7 @@ ggchord_role_guide_spec <- function(plot, role, colourbar = FALSE) {
     ) * size_scale
   if (is.null(vals$legend.key.height))
     vals$legend.key.height <- grid::unit(
-      if (colourbar && !horizontal) 54 else if (colourbar) 3.8 else 4, "mm"
+      if (colourbar && !horizontal) 80 else if (colourbar) 3.8 else 4, "mm"
     ) * size_scale
   raw_text <- item$text %||% common$text
   raw_title <- item$title %||% common$title
@@ -230,14 +276,15 @@ ggchord_role_guide_spec <- function(plot, role, colourbar = FALSE) {
     position = resolved_position,
     direction = resolved_direction %||% NULL,
     theme = if (length(vals)) do.call(ggplot2::theme, vals) else NULL,
-    size_scale = size_scale
+    size_scale = size_scale,
+    height_budget = ggchord_guide_height_budget(plot,resolved_position)
   )
 }
 
 #' Construct the default guide for one chord role
 #' @noRd
 ggchord_role_guide <- function(plot, role, colourbar = FALSE, order = 0,
-                               override.aes = list()) {
+                               override.aes = list(), labels = NULL) {
   spec <- ggchord_role_guide_spec(plot, role, colourbar)
   if (isTRUE(spec$hidden)) return("none")
   if (colourbar) {
@@ -247,10 +294,107 @@ ggchord_role_guide <- function(plot, role, colourbar = FALSE, order = 0,
       available_aes = "ribbon_fill"
     )
   } else {
+    columns <- ggchord_guide_columns(labels, spec)
     guide_ggchord_legend(
-      position = spec$position, direction = spec$direction,
+      ncol = columns, position = spec$position, direction = spec$direction,
       theme = spec$theme, size_scale = spec$size_scale, order = order,
       override.aes = override.aes
     )
   }
+}
+
+# Unequal numeric intervals occupy their actual share of the 0..100 domain.
+ggchord_identity_guide <- function(plot = NULL) {
+  spec <- if (!is.null(plot)) ggchord_role_guide_spec(plot,"ribbon",TRUE) else list()
+  if (isTRUE(spec$hidden)) return("none")
+  # Generic legend key sizes describe categorical swatches, not the full
+  # numerical ruler. Reserve enough physical distance for its closest labels.
+  if (!is.null(plot)) {
+    horizontal <- identical(spec$direction, "horizontal") ||
+      spec$position %in% c("top", "bottom")
+    style <- spec$theme$legend.text
+    points <- if(inherits(style,"element_text") && is.numeric(style@size)) style@size else 8
+    family <- if(inherits(style,"element_text")) style@family %||% "" else ""
+    face <- if(inherits(style,"element_text")) style@face %||% "plain" else "plain"
+    values <- c(0,50,80,90,95,100)
+    dimensions <- vapply(as.character(values), function(label) {
+      g <- grid::textGrob(label,gp=grid::gpar(fontsize=points,fontfamily=family,fontface=face))
+      if(horizontal) grid::convertWidth(grid::grobWidth(g),"mm",TRUE) else
+        grid::convertHeight(grid::grobHeight(g),"mm",TRUE)
+    }, numeric(1))
+    required <- max(((head(dimensions,-1L)+tail(dimensions,-1L))/2 + 1.2) /
+      (diff(values)/100))
+    settings <- ggchord_plot_settings(plot)
+    field <- if(horizontal) "key.width" else "key.height"
+    explicit <- settings$legends$ribbon[[field]] %||%
+      settings$legends$ribbon$key.size
+    if(is.null(explicit)) {
+      length_mm <- max(required, (if(horizontal) 100 else 80) * spec$size_scale)
+      spec$theme <- spec$theme + do.call(ggplot2::theme,
+        stats::setNames(list(grid::unit(length_mm,"mm")),paste0("legend.",field)))
+    } else if(grid::is.unit(explicit) &&
+        grid::convertUnit(explicit,"mm",valueOnly=TRUE) < required) {
+      warning(paste0("Identity guide labels need at least ",round(required,1),
+        " mm along the bar at this font size; the explicit guide size is retained"),call.=FALSE)
+    }
+  }
+  ggplot2::guide_coloursteps(available_aes="ribbon_fill", even.steps=FALSE,
+    show.limits=TRUE, position=spec$position, direction=spec$direction,
+    theme=spec$theme, order=2)
+}
+
+# Measure actual label envelopes before choosing a categorical guide grid.
+# The render loop subsequently measures the combined guide/panel gtable.
+ggchord_guide_columns <- function(labels, spec) {
+  if (!length(labels)) return(NULL)
+  context <- ggchord_render_context()
+  canvas <- context$canvas_mm %||% ggchord_render_dimensions()
+  if (any(!is.finite(canvas))) return(NULL)
+  text_style <- spec$theme$legend.text
+  size <- if (inherits(text_style,"element_text") && is.numeric(text_style@size)) text_style@size else 8 * spec$size_scale
+  metrics <- if(inherits(text_style,"element_blank")) matrix(c(0,0),nrow=1,dimnames=list(NULL,c("width","height"))) else
+    do.call(rbind,lapply(as.character(labels),function(label) {
+      g <- grid::textGrob(label,gp=grid::gpar(fontsize=size,
+        fontfamily=if(inherits(text_style,"element_text"))text_style@family %||% "" else "",
+        fontface=if(inherits(text_style,"element_text"))text_style@face %||% "plain" else "plain"))
+      c(width=grid::convertWidth(grid::grobWidth(g),"mm",TRUE),
+        height=grid::convertHeight(grid::grobHeight(g),"mm",TRUE))
+    }))
+  dimension <- function(field,fallback) {
+    value<-spec$theme[[field]]
+    if(grid::is.unit(value))as.numeric(grid::convertUnit(value,"mm",valueOnly=TRUE))[1] else fallback
+  }
+  key_height<-dimension("legend.key.height",4*spec$size_scale)
+  key_width<-dimension("legend.key.width",5.5*spec$size_scale)
+  pitch <- max(key_height,max(metrics[,"height"])+2)
+  if (spec$position %in% c("top","bottom")) {
+    capacity <- max(1,floor(canvas[1]*.85/(max(metrics[,"width"])+key_width+2)))
+    return(as.integer(min(length(labels),capacity)))
+  }
+  as.integer(max(1,ceiling(length(labels)*pitch/(spec$height_budget %||% (canvas[2]*.72)))))
+}
+
+# Share the side budget between the actual visible roles; the final gtable
+# measurement remains authoritative and can report infeasible explicit styles.
+ggchord_guide_height_budget <- function(plot,position) {
+  canvas <- ggchord_render_dimensions()
+  if(any(!is.finite(canvas)))return(NULL)
+  settings <- ggchord_plot_settings(plot)
+  roles <- character()
+  for(layer in plot$layers) {
+    if(identical(layer$show.legend,FALSE))next
+    for(aes in names(ggchord_effective_mapping(layer))) {
+      role <- if(grepl("^track_(fill|colour)_",aes)) aes else switch(aes,
+        seq_colour="seq",ribbon_fill="ribbon",ribbon_colour="ribbon",
+        gene_fill="gene",feature_fill="feature",region_fill="region",NULL)
+      if(is.null(role))next
+      scale <- plot$scales$get_scales(aes)
+      if(!is.null(scale) && identical(scale$guide,"none"))next
+      item <- settings$legends[[role]]
+      where <- item$position %||% settings$legend$position %||% plot$theme$legend.position %||%
+        if(role=="ribbon") "left" else "right"
+      if(!isTRUE(item$hidden) && identical(where,position))roles <- c(roles,role)
+    }
+  }
+  max(12,canvas[2]*.72/max(1,length(unique(roles)))-5)
 }

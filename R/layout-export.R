@@ -14,8 +14,11 @@
 #' @param plot A ggchord plot.
 #' @param include Character vector selecting any of \code{"seq"},
 #'   \code{"ribbon"}, \code{"gene"}, \code{"feature"}, \code{"labels"},
-#'   \code{"link"}, \code{"restriction"}, \code{"track"}, and \code{"axis"}. Point links and
+#'   \code{"alignment"}, \code{"link"}, \code{"restriction"}, \code{"track"}, and \code{"axis"}. Point links and
 #'   restriction sites require explicit selection.
+#' Dotplots default to `alignment` and `axis`; `axis_layout` contains reversible
+#' axis offsets, directions and source origins. Alignment exports retain all four
+#' endpoints, layer identity and source row; omissions appear in `connection_report`.
 #' @param original_data Logical. Include the resolved per-layer input tables
 #'   under \code{original_data}, default \code{FALSE}.
 #'
@@ -28,10 +31,11 @@
 #'   Explicitly inside primer and restriction callouts
 #'   register measured inner boxes rather than exterior bands or slots.
 #'   The \code{metadata} member
-#'   records rotation, aspect ratio, limits, coordinate units and
+#'   records rotation, aspect ratio, limits, native `sequence_unit` (bp/aa), and
 #'   transformation state.
 #'   Collinear layouts instead include `sequence_layout`, containing each
-#'   sequence's horizontal range, backbone y, orientation, units per bp,
+#'   sequence's horizontal range, backbone y, orientation, `units_per_position`,
+#'   and `sequence_unit`. The compatibility field `units_per_bp` is NA for aa. It also records
 #'   reversible x offset, anchor and source origin. `orientation_diagnostics`
 #'   records directional support, confidence and unresolved cases.
 #'   Position lanes remain local offsets and are not circular physical tracks.
@@ -57,8 +61,28 @@
 #'   text, requested/minimum/final sizes and fallback or hiding reasons.
 #'   `render_context` distinguishes layout-only estimates from actual panel
 #'   measurements. For a target-size measured report use [diagnose_ggchord()].
+#'   `source_registry` and `layer_sources` retain constructor and per-layer
+#'   annotation identities without overwriting user columns. Explicit layer
+#'   tables/functions have layer-local source scope. `annotation_duplicates`
+#'   reports shared constructor rows drawn by multiple geometry layers.
 #' @md
 #' @export
+#'
+#' @section New coordinate fields:
+#' Radial synteny layouts include `radial_frames` (tangent/normal, angle,
+#' local origin and inner radius; theta is in radians) and `radial_endpoints` (full HSP fronts).
+#' Metadata records cyclic adjacency, display rotation and closed one-based
+#' interval boundaries; these never imply a biological sequence closure.
+#' Dotplots include independent `axis_layout` frames and original endpoint
+#' rows under `alignment`; axis selection and unknown directions appear in
+#' `connection_report`.
+#'
+#' @section Ribbon drawing:
+#' `ribbon_rendering` records per-layer fill/tip mode. Exported polygon fronts
+#' retain the full source intervals. An optional subject tip is decorative;
+#' its shoulder translates the target endpoint span to 88 percent of the
+#' channel. Continuous fills use a device-resolved raster mesh and vector
+#' outlines. A bounded fill budget warns when dense layers reduce resolution.
 #'
 #' @examples
 #' library(dplyr)
@@ -74,6 +98,7 @@ export_ggchord_layout <- function(
     plot,
     include = c("seq", "ribbon", "gene", "feature", "labels", "axis", "track"),
     original_data = FALSE) {
+  default_include <- missing(include)
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
@@ -81,7 +106,7 @@ export_ggchord_layout <- function(
     ggchord_stop("export_ggchord_layout(): plot must be a ggchord object")
   }
   allowed <- c("seq", "link", "ribbon", "gene", "feature", "labels",
-               "restriction", "axis", "track")
+               "restriction", "axis", "track", "alignment")
   if (!is.character(include) || anyNA(include) ||
       any(!include %in% allowed)) {
     ggchord_stop(
@@ -95,9 +120,17 @@ export_ggchord_layout <- function(
     ggchord_stop("export_ggchord_layout(): original_data must be TRUE or FALSE")
   }
 
+  if (isTRUE(plot$coordinates$ggchord_dotplot)) {
+    if (default_include) include <- c("alignment", "axis")
+    return(ggchord_export_dotplot(plot, include, original_data))
+  }
   plot <- ggchord_register_layers(plot)
   layout <- get_chord_layout(plot, build = TRUE)
   exported <- stats::setNames(vector("list", length(include)), include)
+  if (!is.null(plot$ggchord$layout_policy)) {
+    exported$adaptive_layout <- list(policy=plot$ggchord$layout_policy,
+      measurement="layout_only",guide_layout="target_device_required")
+  }
   for (nm in include) exported[[nm]] <- data.frame()
   kept_inputs <- list()
 
@@ -203,42 +236,34 @@ export_ggchord_layout <- function(
   }
   exported$track_registry <- layout$track_registry %||% data.frame()
   exported$track_diagnostics <- layout$track_diagnostics %||% data.frame()
+  exported$track_statistics <- layout$track_statistics %||% list()
+  if (isTRUE(original_data)) exported$track_source_data <- layout$track_source_data %||% list()
+  exported$source_registry <- ggchord_source_registry(plot$ggchord$sources %||% list())
+  exported$layer_sources <- ggchord_annotation_source_maps(layout)
+  exported$annotation_duplicates <- ggchord_annotation_duplicate_sources(exported$layer_sources)
   exported$axis_selection <- layout$axis_selection %||% data.frame()
   exported$render_context <- layout$render_context %||% ggchord_estimated_render_context(layout)
-  fits <- lapply(names(layout$layer_layouts), function(id) {
-    # Dependency sub-layouts may carry compatibility label diagnostics even
-    # when their owner only draws a backbone or feature. Export only the
-    # actual text owner's diagnostics, including owners whose text was hidden.
-    if (!any(names(layout$layer_geometry[[id]]) %in%
-        c("gene_text", "gene_text_repel", "gene_label_repel"))) return(NULL)
-    d <- layout$layer_layouts[[id]]$label_fit_diagnostics
-    if (!is.data.frame(d) || !nrow(d)) return(NULL)
-    resolved <- lapply(layout$layer_geometry[[id]], function(g) {
-      if (!is.data.frame(g) || !nrow(g) || !"label_size_requested" %in% names(g)) return(NULL)
-      if (".component" %in% names(g)) g <- g[g$.component %in% c("text", "arc_text"), , drop = FALSE]
-      if (!nrow(g)) return(NULL)
-      unique(g[intersect(c("source_row", "label_size_final", "label_fit_reason"), names(g))])
-    })
-    resolved <- ggchord_rbind_fill(resolved)
-    if (is.data.frame(resolved) && nrow(resolved)) {
-      at <- match(d$source_row, resolved$source_row)
-      for (field in intersect(c("label_size_final", "label_fit_reason"), names(resolved)))
-        d[[field]][!is.na(at)] <- resolved[[field]][at[!is.na(at)]]
-      d$label_fit_reason[is.na(at)] <- "hidden_after_layout"
-    } else d$label_fit_reason <- "hidden_after_layout"
-    d$layer_id <- id
-    d
-  })
-  exported$label_fit_diagnostics <- ggchord_rbind_fill(fits) %||% data.frame()
+  exported$label_fit_diagnostics <- ggchord_label_fit_diagnostics(layout)
+  exported$label_visibility <- ggchord_label_visibility(layout)
 
   coord <- plot$coordinates
   exported$connection_report <- layout$connection_report %||% data.frame()
+  ribbon_layers <- Filter(function(layer) identical(layer$ggchord_type,"ribbon"),plot$layers)
+  exported$ribbon_rendering <- ggchord_rbind_fill(lapply(ribbon_layers,function(layer) data.frame(
+    layer_id=layer$ggchord_layer_id,tip=layer$ggchord_params$tip %||% "none",
+    fill=if(ggchord_ribbon_uses_flow(layer,plot)) "endpoint_gradient" else "user_or_value_fill",
+    geometry_basis=if(identical(layer$ggchord_params$link_branch %||% "none","none")) "full_source_interval_fronts" else "source_fronts_and_explicit_artificial_branch_junctions",
+    shoulder_basis="translated_target_endpoint_span_at_channel_fraction_0.88",
+    marker_basis="decorative_subject_front_midpoint_not_a_single_match",stringsAsFactors=FALSE))) %||% data.frame()
+
   fitted <- if (isTRUE(layout$collinear) && identical(coord$fit, "geometry")) {
     ggchord_geometry_limits(layout)
   } else ggchord_adaptive_limits(layout)
   metadata <- list(
     coordinate_space = "ggchord_layout",
     units = "data",
+    sequence_unit = layout$sequence_unit %||% "bp",
+    length_mode = layout$length_mode %||% "proportional",
     rotation = layout$rotation %||%
       if (isTRUE(coord$ggchord_coord)) coord$rotation else 0,
     rotation_applied = TRUE,
@@ -258,9 +283,31 @@ export_ggchord_layout <- function(
       ggchord_empty_circular_annotation_registry()
   } else if (isTRUE(coord$ggchord_collinear)) {
     metadata$coordinate <- "collinear"
+    if (isTRUE(coord$ggchord_sankey)) metadata$coordinate <- "sankey"
     metadata$genomic_scale <- "linear"
     metadata$normal_direction <- "positive_up"
+    metadata$seq_axis <- layout$seq_axis %||% "horizontal"
+    if (identical(metadata$seq_axis, "vertical")) metadata$normal_direction <- "positive_left"
+    if (isTRUE(coord$ggchord_sankey)) metadata$normal_direction <- "positive_outward"
+    if (isTRUE(coord$ggchord_radial)) {
+      metadata$coordinate <- "radial_synteny"
+      metadata$normal_direction <- "counterclockwise_from_outward_spoke"
+      metadata$start_angle <- coord$radial_start_angle
+      metadata$clockwise <- coord$radial_clockwise
+      metadata$inner_radius <- coord$radial_inner_radius
+      metadata$adjacency <- "cyclic"
+      metadata$interval_fronts <- "closed_one_based_interval_boundaries"
+      exported$radial_frames <- ggchord_restore_instance_data(
+        transform(layout$radial_frames, accver = key), layout$display_instances)
+      exported$radial_endpoints <- ggchord_restore_instance_data(layout$radial_endpoints, layout$display_instances)
+    }
     exported$sequence_layout <- layout$sequence_layout
+    if (identical(layout$sequence_unit, "aa")) {
+      exported$sequence_layout$units_per_bp <- NA_real_
+      if ("gap_bp" %in% names(exported$sequence_layout)) {
+        exported$sequence_layout$gap_bp <- NA_real_
+      }
+    }
     exported$label_diagnostics <- layout$collinear_label_diagnostics %||% data.frame()
     exported$orientation_diagnostics <- layout$orientation_diagnostics %||% data.frame()
   } else {
@@ -268,6 +315,16 @@ export_ggchord_layout <- function(
   }
 
   exported$metadata <- metadata
+  ref <- layout$sequence_reference
+  display <- if (isTRUE(layout$collinear)) {
+    if (identical(layout$seq_axis, "vertical")) layout$sequence_layout$axis_max - layout$sequence_layout$axis_min else
+      layout$sequence_layout$xmax - layout$sequence_layout$xmin
+  } else abs(ref$ends[layout$seqs] - ref$starts[layout$seqs])
+  exported$sequence_display <- data.frame(accver = layout$seqs,
+    source_length = unname(ref$lens[layout$seqs]), display_length = unname(display),
+    display_scale_factor = unname(display / ref$lens[layout$seqs]),
+    length_mode = metadata$length_mode, sequence_unit = metadata$sequence_unit,
+    display_unit = if (isTRUE(layout$collinear)) "layout" else "radian")
   conversions <- lapply(plot$ggchord$data, attr, which = "ggchord_conversion")
   conversions <- Filter(Negate(is.null), conversions)
   for (id in names(layout$layer_inputs)) {
@@ -277,6 +334,20 @@ export_ggchord_layout <- function(
   }
   if (length(conversions)) exported$conversion_reports <- conversions
   if (isTRUE(original_data)) exported$original_data <- kept_inputs
+  if (!is.null(layout$display_instances)) {
+    instances <- layout$display_instances
+    exported$display_instances <- instances[, intersect(c("instance_id", "accver", "declared_order", "side"), names(instances))]
+    exported$instance_routing <- layout$instance_routing %||% data.frame()
+    exported$instance_omissions <- layout$instance_omissions %||% data.frame()
+    for (field in intersect(names(exported), c(include, "sequence_display", "sequence_layout",
+        "track_registry", "track_diagnostics", "axis_selection", "connection_report", "label_diagnostics")))
+      exported[[field]] <- ggchord_restore_instance_data(exported[[field]], instances)
+    for (field in intersect(names(exported), c("original_data", "track_statistics")))
+      exported[[field]] <- lapply(exported[[field]], function(x) {
+        if (is.data.frame(x)) ggchord_restore_instance_data(x, instances) else
+          lapply(x, ggchord_restore_instance_data, instances = instances)
+      })
+  }
   class(exported) <- c("ggchord_layout_export", "list")
   exported
 }

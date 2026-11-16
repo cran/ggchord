@@ -18,16 +18,18 @@ make_ribbon_geom <- function(outline = FALSE, linetype = FALSE) {
   renames <- c(fill = "ribbon_fill", alpha = "ribbon_alpha")
   if (isTRUE(outline)) renames <- c(renames, colour = "ribbon_colour")
   if (isTRUE(linetype)) renames <- c(renames, linetype = "ribbon_linetype")
-  rename_geom_aes(ggplot2::GeomPolygon, renames = renames)
+  rename_geom_aes(GeomRibbonFlow, renames = renames)
 }
 
 #' Add an alignment ribbon layer
 #'
-#' Draws alignment ribbons. Identity is mapped to `ribbon_fill` by default;
-#' When pident is absent, the default is a fixed grey fill with no Identity
-#' guide. Alignment length and identity are never inferred from endpoints.
+#' Draws alignment ribbons with Identity fills by default.
+#' Set gradient = TRUE for query-to-subject sequence-colour interpolation. Explicit fill, ribbon_fill mappings or ribbon fill scales
+#' replace the gradient; map ribbon_fill = pident for an Identity guide. Alignment length and identity are never inferred from endpoints.
 #' Alternative mappings and legends are controlled with `aes()`, `scale_*()`
-#' and `guides()`.
+#' and `guides()`. With gradient enabled, shared trunks keep the common
+#' endpoint colour and branches interpolate between their endpoint colours. Optional tips appear
+#' only at real subject fronts.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
 #' @param data Default NULL (retrieved automatically from the layout)
@@ -35,7 +37,11 @@ make_ribbon_geom <- function(outline = FALSE, linetype = FALSE) {
 #'   Two numbers specify one shared control; four numbers specify controls for
 #'   the two ribbon edges. A per-row list may contain pairs of coordinate vectors.
 #'   NULL uses the origin \code{c(0, 0)} in chord layouts and derives controls
-#'   from the sequence endpoints in collinear layouts. With shared branches,
+#'   from the sequence endpoints in collinear layouts. In Radial layouts NULL
+#'   uses annular curves; explicit controls use final Cartesian layout units,
+#'   one point for each edge. Use a separate layer to adjust nonadjacent links
+#'   without changing adjacent curves. This controls the middle of the path;
+#'   `link_gap` only controls clearance at the sequence endpoints. With shared branches,
 #'   controls shape the far ends while the junction follows the shared trunk.
 #' @param link_gap Optional numeric/vector controlling spacing between
 #'   sequences and ribbon endpoints. With the default
@@ -50,15 +56,33 @@ make_ribbon_geom <- function(outline = FALSE, linetype = FALSE) {
 #'   \code{"smooth"}. Smooth avoidance changes clearance locally; uniform
 #'   avoidance uses one clearance across an endpoint.
 #' @inheritParams geom_link_line
-#' @param fill Optional fixed ribbon fill. `NULL` keeps the default Identity
-#'   mapping.
+#' @param between Two display-instance names or declared-order indices for a unique route.
+#' @param allow_repeated Explicitly allow a declared source_hsp_id in more than one displayed relation.
+#' @param tip Full interval fronts (none, default), or an optional subject taper.
+#'   The shoulder retains the translated target endpoint span at 88 percent
+#'   of the channel. The tip is a decorative front-midpoint marker, not a
+#'   single matched base or biological transfer direction. Degenerate fronts
+#'   fall back to the full front with a warning. Source intervals are unchanged.
+#' @param gradient Logical. Opt into endpoint sequence-colour interpolation;
+#'   default FALSE. Explicit fill, mapping and scales still take priority.
+#' @param fill Optional fixed ribbon fill. NULL uses the default Identity fill.
 #' @param alpha,colour,linewidth Standard fixed ribbon styles. Explicit values
 #'   take precedence over matching mappings; omitted defaults do not suppress
 #'   user mappings. For example, omit `alpha` when mapping `ribbon_alpha`.
+#' @param nonadjacent_linewidth Fixed outline width for non-adjacent displayed
+#'   rows in [coord_collinear()] or nonadjacent spokes in
+#'   [coord_radial_synteny()], default 0.4 mm. These ribbons use dashed
+#'   outlines by default. Zero uses the layer's ordinary `linewidth` for every
+#'   ribbon. This changes width independently of line type. An explicit
+#'   `aes(linewidth = ...)` controls widths instead of this fixed default.
 #' @param linetype Fixed outline line type. The default `NULL` uses solid
-#'   outlines for adjacent displayed sequences and dashed outlines for
-#'   non-adjacent sequences. Chord adjacency includes the first/last pair.
-#'   This follows the final display order, independently of alignment direction.
+#'   outlines in Chord and Sankey views. [coord_collinear()]
+#'   uses dashed outlines for non-adjacent displayed rows, with widths set by
+#'   `nonadjacent_linewidth`; adjacent rows stay solid. This row convention
+#'   follows final display order, independently of alignment direction.
+#'   [coord_radial_synteny()] also uses dashed nonadjacent outlines, with
+#'   adjacency defined cyclically (including first/last); `nonadjacent_linewidth`
+#'   uses the same width convention as Collinear.
 #'   Explicit fixed styles or `aes(ribbon_linetype = ...)` (also
 #'   `aes(linetype = ...)`) replace the automatic styles. Use a matching scale
 #'   for data mappings; automatic styles do not train a linetype scale.
@@ -79,12 +103,12 @@ make_ribbon_geom <- function(outline = FALSE, linetype = FALSE) {
 #'
 #' @examples
 #' library(dplyr)
-#' data(seq_data_example)
-#' seqs <- seq_data_example |>
-#'   select(accver, length)
-#' data(ribbon_data_example)
 #' links <- ribbon_data_example |>
+#'   slice_head(n = 1) |>
 #'   select(qaccver, saccver, qstart, qend, sstart, send)
+#' seqs <- seq_data_example |>
+#'   filter(accver %in% c(links$qaccver, links$saccver)) |>
+#'   select(accver, length)
 #' ggchord(seq_data = seqs, ribbon_data = links) +
 #'   geom_seq() +
 #'   geom_link_ribbon()
@@ -104,11 +128,21 @@ geom_link_ribbon <- function(mapping = NULL, data = NULL,
                         position = "identity",
                         show.legend = TRUE,
                         inherit.aes = FALSE,
-                        ...) {
+                        nonadjacent_linewidth = 0.4,
+                        between = NULL, allow_repeated = FALSE, tip = c("none", "subject"),
+                        gradient = FALSE, ...) {
+  tip <- match.arg(tip)
+  if (!is.logical(gradient) || length(gradient) != 1L || is.na(gradient))
+    ggchord_stop("gradient must be TRUE or FALSE")
   ribbon_ctrl_point <- link_ctrl_point
+  if (!is.logical(allow_repeated) || length(allow_repeated) != 1L || is.na(allow_repeated))
+    ggchord_stop("allow_repeated must be TRUE or FALSE")
   ribbon_gap <- link_gap
   style_defaults <- c(colour = missing(colour), linewidth = missing(linewidth))
   alpha_supplied <- !missing(alpha)
+  if (!is.numeric(nonadjacent_linewidth) || length(nonadjacent_linewidth) != 1L ||
+      !is.finite(nonadjacent_linewidth) || nonadjacent_linewidth < 0) ggchord_stop(
+    "geom_link_ribbon(): nonadjacent_linewidth must be one finite non-negative number")
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
   link_avoid <- match.arg(link_avoid)
@@ -214,6 +248,8 @@ geom_link_ribbon <- function(mapping = NULL, data = NULL,
     type                      = "ribbon",
     style_defaults = style_defaults,
     adjacent_only = adjacent_only, pairs = pairs,
+    between = between, allow_repeated = allow_repeated, tip = tip, gradient = gradient,
+    nonadjacent_linewidth = nonadjacent_linewidth,
     link_avoid = link_avoid, link_branch = link_branch, link_branch_fraction = link_branch_fraction,
     ribbon_color_scheme       = "pident",
     ribbon_colors             = NULL,

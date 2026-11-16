@@ -2,7 +2,7 @@
 % Please edit documentation in R/geom-feature.R
 \name{geom_feature_plasmid}
 \alias{geom_feature_plasmid}
-\title{Draw SnapGene-style features on a circular plasmid}
+\title{Draw annotated features on a circular plasmid}
 \usage{
 geom_feature_plasmid(
   mapping = NULL,
@@ -36,7 +36,9 @@ their internal level codes. Coordinates must resolve to finite numbers.
 \code{display_priority} or logical \code{prioritized_display}. As an alternative to
 \code{strand}, \code{directionality} or \code{direction} may contain
 \code{"forward"}, \code{"reverse"}, \code{"bidirectional"}, or
-\code{"none"}.}
+\code{"none"}.
+When omitted, uses the full constructor \code{feature_data} (or compatible
+\code{gene_data}). Other layers never remove records from this default input.}
 
 \item{shape}{Fixed feature geometry. An explicitly supplied shape takes
 precedence over \code{aes(feature_shape = ...)}: \code{"arrow"},

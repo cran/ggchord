@@ -81,8 +81,9 @@ geom_feature_label <- function(
 #'   text is tried inside first, then assigned to a fixed-radius internal
 #'   track. All non-external text is laid out character by character along its
 #'   selected track radius rather than rotated as one straight string. A light
-#'   leader appears when one or more intervening tracks separate the feature
-#'   and its label.
+#'   leader appears when tracks separate the feature and its label or a
+#'   visible angular displacement could obscure ownership. Circular feature
+#'   layouts retain direct leaders instead of multi-bend detours.
 #'   Choose another mode for unrestricted external callouts.
 #' @param label_side One of `"inside"`, `"outside"`, or `"auto"`.
 #' @param label_wrap,label_fit,label_max_lines Text fitting controls.
@@ -94,6 +95,22 @@ geom_feature_label <- function(
 #'   default 1.5. Must not exceed the requested text size. Original text,
 #'   requested/final sizes and fitting reason are exported with the label.
 #' @param max_overlaps Maximum unresolved overlaps.
+#' @param label_repeat `"individual"` (default) keeps one label per feature.
+#'   `"bracket"` shares a counted label and an arc bracket for consecutive,
+#'   non-overlapping short features with the same name, type, direction and
+#'   resolved fill in one circular feature band. Source rows and individual
+#'   arrows remain separate. Only supported with `label_layout = "feature"`.
+#' @param label_segment_colour `"auto"` uses muted grey for leaders from
+#'   a feature inside the sequence circle to a label outside it. Other leaders
+#'   retain the theme colour. Explicit colours override both. A custom
+#'   feature-label segment theme overrides the automatic palette.
+#'   `label_segment_linetype = "auto"` uses dashed lines for those
+#'   inside-to-outside attachments. Labels that stay inside retain their
+#'   established leader style.
+#' @param label_segment_layer Draw leaders `"below"` all data layers (default),
+#'   or `"above"` at this label layer's normal position. Text always stays at
+#'   this layer's position. Filled features can cover leaders drawn below;
+#'   transparent features retain their normal transparency.
 #' @details
 #' Manual label rotation, offsets, orientation and overlap policy belong to
 #' [geom_feature_label()]. Their `label_*` controls are rejected by automatic
@@ -115,7 +132,10 @@ geom_feature_label <- function(
 #' data(plasmid_example_pUC19)
 #' seqs <- plasmid_example_pUC19 |>
 #'   select(accver, length)
-#' feature_source <- find_common_features(plasmid_example_pUC19)
+#' # Restrict discovery to two named features on the real plasmid.
+#' feature_source <- find_common_features(
+#'   plasmid_example_pUC19, features = c("AmpR", "ori"), mode = "dna"
+#' )
 #' features <- feature_source |>
 #'   slice_head(n = 4) |>
 #'   select(accver, start, end, strand, type, anno)
@@ -125,8 +145,22 @@ geom_feature_label <- function(
 #' ggchord(seq_data = seqs) +
 #'   geom_seq() +
 #'   geom_feature(data = features, position = position_plasmid()) +
-#'   geom_feature_label_repel(data = features, position = position_plasmid()) +
+#'   geom_feature_label_repel(data = features, position = position_plasmid(),
+#'     label_segment_layer = "below", label_segment_colour = "grey50") +
 #'   coord_circular()
+#' \donttest{
+#' # A shared display label preserves all seven biological operator records.
+#' repeated <- find_common_features(plasmid_example_pTRE_Tight_BI)
+#' feature_position <- position_feature_stack(base_position = position_plasmid())
+#' ggchord(plasmid_example_pTRE_Tight_BI[c("accver", "length")],
+#'   feature_data = repeated) +
+#'   geom_seq(seq_style = "double") +
+#'   geom_feature_plasmid(position = feature_position) +
+#'   geom_feature_label_repel(position = feature_position,
+#'     label_repeat = "bracket", label_fit = "shrink", label_min_size = 2.5) +
+#'   coord_circular() +
+#'   theme_ggchord_plasmid()
+#' }
 geom_feature_label_repel <- function(
     mapping = NULL, data = NULL,
     label_layout = c("feature", "radial", "auto", "callout"),
@@ -139,13 +173,25 @@ geom_feature_label_repel <- function(
     position = "identity",
     show.legend = FALSE, inherit.aes = FALSE,
     label_min_size = 1.5, label_segment_overlap = "fade",
-    label_segment_overlap_alpha = .18, label_segment_linetype = "auto", ...) {
+    label_segment_overlap_alpha = .18, label_segment_linetype = "auto",
+    label_segment_layer = c("below", "above"),
+    label_repeat = c("individual", "bracket"),
+    label_segment_colour = "auto", ...) {
   position_explicit <- !missing(position)
   dots <- list(...)
   ggchord_reject_label_prefix(dots, "geom_feature_label_repel()")
   ggchord_reject_manual_label_args(dots, "geom_feature_label_repel()")
+  if (!is.character(label_segment_colour) || length(label_segment_colour)!=1L ||
+      is.na(label_segment_colour)) ggchord_stop("label_segment_colour must be 'auto' or one colour")
+  if (!identical(label_segment_colour,"auto")) tryCatch(
+    grDevices::col2rgb(label_segment_colour), error=function(e)
+      ggchord_stop("label_segment_colour must be 'auto' or one colour"))
+  label_repeat <- match.arg(label_repeat)
+  label_segment_layer <- match.arg(label_segment_layer)
   label_layout <- match.arg(label_layout)
   label_fit <- match.arg(label_fit)
+  if (label_repeat != "individual" && label_layout != "feature")
+    ggchord_stop("geom_feature_label_repel(): label_repeat requires label_layout = 'feature'")
   label_side <- match.arg(label_side)
   if (!is.logical(external) || length(external) != 1L || is.na(external)) {
     ggchord_stop("geom_feature_label_repel(): external must be TRUE or FALSE")
@@ -167,11 +213,15 @@ geom_feature_label_repel <- function(
     # `feature` is an internal staged mode of the shared composite renderer:
     # fit inside first, nudge only nearby labels, and emit leaders only when a
     # real radial gap separates the curved glyph envelope from its feature.
+    lyr$geom_params$feature_segment_style <- list(
+      colour=label_segment_colour,linetype=label_segment_linetype)
     lyr$ggchord_params$gene_label_layout <- "feature"
+    lyr$ggchord_params$label_segment_layer <- label_segment_layer
     lyr$ggchord_params$is_feature_label <- TRUE
     lyr$ggchord_params$position_explicit <- position_explicit
     lyr$ggchord_params$label_side_requested <- label_side
     lyr$ggchord_params$feature_label_external <- external
+    lyr$ggchord_params$feature_label_repeat <- label_repeat
     lyr$ggchord_input_transform <- ggchord_feature_label_data
     lyr$ggchord_role_aes <- unique(c(
       lyr$ggchord_role_aes, "label", "feature_label", "feature_type"
@@ -186,6 +236,9 @@ geom_feature_label_repel <- function(
         colour = I(feature_label_colour)
       )$colour
     }
+    lyr$mapping[[".feature_internal_exit"]] <- ggplot2::aes(
+      .feature_internal_exit = I(.feature_internal_exit)
+    )$.feature_internal_exit
     lyr$mapping[["feature_label_mode"]] <- ggplot2::aes(
       feature_label_mode = I(feature_label_mode)
     )$feature_label_mode
@@ -211,6 +264,9 @@ geom_feature_label_repel <- function(
     show.legend = show.legend, inherit.aes = inherit.aes, ...
   )
   lyr$ggchord_params$gene_label_layout <- if (label_fit == "shrink") "feature" else label_layout
+  lyr$geom_params$feature_segment_style <- list(
+    colour=label_segment_colour,linetype=label_segment_linetype)
+  lyr$ggchord_params$label_segment_layer <- label_segment_layer
   lyr$ggchord_params$is_feature_label <- TRUE
   lyr$ggchord_params$position_explicit <- position_explicit
   lyr$ggchord_params$feature_label_external <- external

@@ -10,6 +10,9 @@
     ggchord.axis.ticks = ggplot2::element_line(),
     ggchord.axis.minor.ticks = ggplot2::element_line(),
     ggchord.axis.text = ggplot2::element_text(),
+    ggchord.track.axis.line = ggplot2::element_line(),
+    ggchord.track.axis.text = ggplot2::element_text(),
+    ggchord.track.axis.title = ggplot2::element_text(),
     ggchord.seq.label = ggplot2::element_text(),
     ggchord.gene.label = ggplot2::element_text(),
     ggchord.gene.label.segment = ggplot2::element_line(),
@@ -21,6 +24,18 @@
     ggchord.seq.center.name = ggplot2::element_text(),
     ggchord.seq.center.length = ggplot2::element_text(),
     element_tree = list(
+      "ggchord.axis" = ggplot2::el_def("element_blank"),
+      "ggchord.axis.gap" = ggplot2::el_def("unit"),
+      "ggchord.axis.ticks.length" = ggplot2::el_def("unit"),
+      "ggchord.axis.minor.ticks.length" = ggplot2::el_def("unit"),
+      "ggchord.axis.text.offset" = ggplot2::el_def("unit"),
+      "ggchord.axis.text.orientation" = ggplot2::el_def(c("character", "numeric")),
+      "ggchord.axis.text.check.overlap" = ggplot2::el_def("logical"),
+      "ggchord.track.axis.line" = ggplot2::el_def("element_line", inherit = "ggchord.axis.line"),
+      "ggchord.track.axis.text" = ggplot2::el_def("element_text", inherit = "ggchord.axis.text"),
+      "ggchord.track.axis.title" = ggplot2::el_def("element_text", inherit = "ggchord.track.axis.text"),
+      "ggchord.track.axis.text.offset" = ggplot2::el_def("unit"),
+      "ggchord.track.axis.title.offset" = ggplot2::el_def("unit"),
       "ggchord.axis.line" = ggplot2::el_def("element_line", inherit = "line"),
       "ggchord.axis.ticks" = ggplot2::el_def("element_line", inherit = "line"),
       "ggchord.axis.minor.ticks" = ggplot2::el_def(
@@ -242,6 +257,18 @@ ggchord_resolve_layer_input <- function(lyr, fallback = NULL) {
       "or a function returning supported data")
   }
   data <- ggchord_normalize_accver(as.data.frame(data, stringsAsFactors = FALSE))
+  source <- lyr$ggchord_params$input_source %||%
+    if (is.null(lyr$ggchord_input_data)) attr(fallback, "ggchord_source") else NULL
+  # A data function may subset while retaining arbitrary data-frame attributes.
+  # Only a resolver-owned row map may be used as constructor provenance.
+  attr(data, "ggchord_source") <- NULL
+  if (is.null(lyr$ggchord_input_data) && isTRUE(attr(fallback, "ggchord_annotation_input")) &&
+      type %in% c("gene", "gene_label", "gene_label_repel") &&
+      !isTRUE(lyr$ggchord_params$is_feature) && !isTRUE(lyr$ggchord_params$is_feature_label)) {
+    selected <- ggchord_annotation_gene_rows(data)
+    data <- data[selected, , drop = FALSE]
+    source$rows <- source$rows[selected]
+  }
   mapping <- lyr$ggchord_input_mapping
   roles <- intersect(lyr$ggchord_role_aes %||% character(0), names(mapping))
   for (role in roles) {
@@ -289,8 +316,15 @@ ggchord_resolve_layer_input <- function(lyr, fallback = NULL) {
   }
   transform <- lyr$ggchord_input_transform
   if (!is.null(transform)) data <- transform(data)
-  if (identical(type, "gene") && !isTRUE(lyr$ggchord_params$is_feature) &&
-      any(!data$strand %in% c("+", "-"))) ggchord_stop(
+  if (!is.null(source)) {
+    if (is.null(lyr$ggchord_params$input_source) && isTRUE(lyr$ggchord_params$is_feature) && "segments" %in% names(data) &&
+        ".biological_source_row" %in% names(data))
+      source$rows <- source$rows[data$.biological_source_row]
+    attr(data, "ggchord_source") <- source
+  }
+  if (type %in% c("gene", "gene_label", "gene_label_repel") &&
+      !isTRUE(lyr$ggchord_params$is_feature) && !isTRUE(lyr$ggchord_params$is_feature_label) &&
+      (is.null(data$strand) || anyNA(data$strand) || any(!data$strand %in% c("+", "-")))) ggchord_stop(
     "geom_gene(): directional genes need '+'/'-' strand; use geom_feature() for nondirectional intervals"
   )
   data
@@ -360,6 +394,7 @@ ggchord_attach_input_columns <- function(geometry, input) {
     return(geometry)
   }
   protected <- c(
+    "source_row",
     "x", "y", "x0", "y0", "x1", "y1", "xend", "yend", "group",
     "text_x", "text_y", "text", "label_x", "label_y", "label",
     "text_angle", "label_angle", "hjust", "vjust", "size", "alpha",
@@ -367,6 +402,7 @@ ggchord_attach_input_columns <- function(geometry, input) {
     "zlinetype", "outline_col", "linetype_val", "seq_colour",
     "ribbon_fill", "ribbon_alpha", "ribbon_colour",
     "ribbon_linetype", "gene_fill", "feature_fill", "feature_shape",
+    "scale_length", "bp_length", "sequence_unit", ".ggchord_adjacent",
     "feature_label_colour", "feature_label_orientation", "region_fill", ".component",
     "track_id", "label_text_original", "label_size_requested", "label_size_final",
     "label_size_min", "label_fit_reason", ".ggchord_resolved_size"
@@ -430,7 +466,36 @@ extract_ggchord_layer_data <- function(lyr, layout) {
     lyr$ggchord_type %||% ""
   ]]
   input <- input %||% ggchord_resolve_layer_input(lyr)
-  ggchord_attach_input_columns(geometry, input)
+  ggchord_restore_instance_data(ggchord_attach_input_columns(geometry, input), layout$display_instances)
+}
+
+# Circular parallel ticks use the same glyph geometry for drawing and bounds.
+ggchord_axis_label_geometry <- function(layout, labels) {
+  if (!nrow(labels) || !isTRUE(layout$circular)) return(labels)
+  curved <- !is.na(labels$label_along_axis) & labels$label_along_axis
+  if (!any(curved)) return(labels)
+  text <- labels[curved, , drop = FALSE]
+  text$text <- text$label
+  text$text_x <- text$label_x; text$text_y <- text$label_y
+  text$text_angle <- text$label_angle
+  text$hjust <- text$label_hjust; text$vjust <- text$label_vjust
+  text$.axis_label <- text$label
+  text <- ggchord_clear_circular_axis_text(text, layout)
+  glyph <- ggchord_arc_text_layout(text,
+    units_per_inch = layout$text_units_per_inch %||% .35,
+    respect_justification = TRUE)$glyphs
+  if (nrow(glyph)) {
+    glyph$label <- glyph$text
+    glyph$label_x <- glyph$text_x; glyph$label_y <- glyph$text_y
+    glyph$label_angle <- glyph$text_angle
+    glyph$label_hjust <- .5; glyph$label_vjust <- .5
+  }
+  hidden <- text[is.na(text$text),,drop=FALSE]
+  if (nrow(hidden)) {
+    hidden$label <- ""
+    hidden$label_x <- hidden$text_x; hidden$label_y <- hidden$text_y
+  }
+  ggchord_rbind_fill(list(labels[!curved, , drop = FALSE], glyph, hidden))
 }
 
 #' Combine axis components for GeomChordAxis
@@ -455,6 +520,7 @@ ggchord_axis_geometry <- function(layout) {
     tick$yend <- tick$y1
   }
   if (nrow(label)) {
+    label <- ggchord_axis_label_geometry(layout, label)
     label$.component <- "text"
     label$x <- label$label_x
     label$y <- label$label_y
@@ -464,15 +530,23 @@ ggchord_axis_geometry <- function(layout) {
   }
   values <- Filter(nrow, list(line, tick, label))
   if (!length(values)) {
-    return(data.frame(x = numeric(), y = numeric(), .component = character()))
+    return(data.frame(x=numeric(),y=numeric(),xend=numeric(),yend=numeric(),
+      label=character(),group=integer(),.component=character(),
+      .draw_as_arc=logical(),.feature_internal_exit=logical(),
+      feature_label_mode=character(),feature_label_fill=character(),
+      feature_label_colour=character(),linetype=character(),alpha=numeric(),
+      size=numeric(),angle=numeric(),hjust=numeric(),vjust=numeric()))
   }
   ggchord_rbind_fill(values)
 }
 
 #' Internal automatic sequence-axis layer
 #' @noRd
-ggchord_axis_layer <- function(layout) {
+ggchord_axis_layer <- function(layout, components = NULL) {
   data <- ggchord_axis_geometry(layout)
+  if (!is.null(components)) {
+    data <- data[data$.component %in% components, , drop = FALSE]
+  }
   mapping <- ggplot2::aes(
     x = x, y = y, xend = xend, yend = yend, label = label,
     group = group, size = I(size), angle = angle,
@@ -507,7 +581,6 @@ ggchord_feature_arc_text <- function(text, units_per_inch) {
   # Every internal feature label follows the radius selected by the track
   # solver. This includes labels moved off the feature into an inner track.
   eligible <- text$feature_label_mode %in% c("inside", "adjacent") &
-    !grepl("\n", text$text, fixed = TRUE) &
     !is.na(text$text) & nzchar(text$text)
   text$.draw_as_arc <- eligible
   curved <- ggchord_arc_text_layout(
@@ -522,6 +595,15 @@ ggchord_repel_geometry <- function(layout) {
   segment <- layout$gene_label_segments %||% data.frame()
   text <- layout$gene_labels %||% data.frame()
   arc_text <- data.frame()
+  if (nrow(text) && !isTRUE(layout$circular)) text$.feature_internal_exit <- FALSE
+  if (nrow(text) && identical(layout$gene_label_layout, "feature") &&
+      isTRUE(layout$circular)) {
+    radius <- unname(layout$seqRadius[as.character(text$accver)])
+    text$.feature_internal_exit <- isTRUE(layout$circular) &
+      text$feature_label_mode %in% "external" & is.finite(radius) &
+      sqrt(text$anchor_x^2+text$anchor_y^2) < radius -
+        .1*(layout$text_units_per_inch %||% .35)/25.4
+  }
   if (nrow(text) && identical(layout$gene_label_layout, "feature")) {
     curved <- ggchord_feature_arc_text(
       text, layout$text_units_per_inch %||% .35
@@ -546,7 +628,7 @@ ggchord_repel_geometry <- function(layout) {
         "group" %in% names(text)) {
       label_index <- match(segment$group, text$group)
       for (nm in intersect(
-          c("source_row", "accver", "feature_track", "label_track"),
+          c("source_row", "accver", "feature_track", "label_track", "feature_label_mode", ".feature_internal_exit"),
           names(text))) {
         segment[[nm]] <- text[[nm]][label_index]
       }
@@ -582,7 +664,8 @@ ggchord_repel_geometry <- function(layout) {
     arc_text$linetype <- "solid"
     arc_text$alpha <- 1
   }
-  values <- Filter(nrow, list(segment, text, arc_text))
+  bracket <- ggchord_repeat_bracket_geometry(text)
+  values <- Filter(nrow, list(segment, text, arc_text, bracket))
   if (!length(values)) {
     return(data.frame(x = numeric(), y = numeric(), .component = character()))
   }

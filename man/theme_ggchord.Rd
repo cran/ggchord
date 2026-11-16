@@ -577,13 +577,31 @@ theme_ggchord_plasmid(
 \item{axis.text}{Axis text element.}
 
 \item{axis.gap, axis.ticks.length, axis.minor.ticks.length, axis.text.offset}{Scalar \code{\link[grid:unit]{grid::unit()}} objects controlling physical axis spacing. A
-negative \code{axis.gap} moves circular ticks and labels inside the sequence
-ring; the plasmid preset uses this convention.}
+negative \code{axis.gap} places the circular axis inside the backbone; a
+positive value places it outside. Zero attaches ticks to the inner
+backbone edge and is the circular default, including the plasmid preset.
+Circular major/minor tick lengths default to 1.5/0.7 mm, or 2.2/0.8 mm
+with the plasmid preset. Their default line widths are 0.45/0.3 mm, or
+0.6/0.35 mm with that preset. Explicit length and line settings take priority.}
 
 \item{axis.text.orientation}{One of \code{"horizontal"}, \code{"parallel"},
-\code{"perpendicular"}, or a finite numeric angle.}
+\code{"perpendicular"}, or a finite numeric angle. In circular layouts,
+parallel labels follow the circle glyph by glyph. Horizontal and numeric
+orientations retain straight text.}
 
-\item{axis.text.check.overlap}{Whether overlapping axis labels are hidden.}
+\item{axis.text.check.overlap}{Whether overlapping axis labels are hidden. Defaults to TRUE.
+Automatically positioned circular parallel labels, including combined seam
+strings, can receive bounded inward or outward radial clearance around
+feature polygons and fixed annotation-leader roots. Internal and exterior
+annotation leaders route around the resolved axis text; mutable shoulders
+do not feed back into axis placement. Automatic strings stay in a near-
+backbone channel. Origin/end strings take priority and remain visible;
+an automatic endpoint may use either readable side of its tick, with a
+bounded tangential gap up to 4 mm, to clear fixed feature exit rays.
+Unresolved endpoint clearance is reported as \code{endpoint_unresolved}.
+Overlap checking may hide ordinary intermediate text while keeping its
+tick, with \code{hidden_near_backbone} in diagnostics.
+Explicit \code{axis.text.offset} values and explicit scale breaks stay fixed.}
 
 \item{seq.label, gene.label, feature.label, restriction.label, seq.center.label, seq.center.name, seq.center.length}{Text elements for sequence, gene, feature, restriction-site and circular
 centre labels.}
@@ -601,7 +619,9 @@ to hide every guide for that role.}
 
 \item{legend.seq.key, legend.ribbon.key, legend.gene.key, legend.feature.key, legend.region.key}{Per-role key elements.}
 
-\item{legend.seq.key.size, legend.seq.key.width, legend.seq.key.height, legend.ribbon.key.size, legend.ribbon.key.width, legend.ribbon.key.height, legend.gene.key.size, legend.gene.key.width, legend.gene.key.height, legend.feature.key.size, legend.feature.key.width, legend.feature.key.height, legend.region.key.size, legend.region.key.width, legend.region.key.height}{Per-role key dimensions.}
+\item{legend.seq.key.size, legend.seq.key.width, legend.seq.key.height, legend.ribbon.key.size, legend.ribbon.key.width, legend.ribbon.key.height, legend.gene.key.size, legend.gene.key.width, legend.gene.key.height, legend.feature.key.size, legend.feature.key.width, legend.feature.key.height, legend.region.key.size, legend.region.key.width, legend.region.key.height}{Per-role key dimensions. Automatic Identity rulers
+measure their boundary labels independently of generic legend swatch sizes.
+Set a Ribbon-specific dimension or an explicit guide for a manual ruler length.}
 
 \item{legend.seq.text, legend.ribbon.text, legend.gene.text, legend.feature.text, legend.region.text}{Per-role text elements.}
 
@@ -644,6 +664,27 @@ settings inherit common legend appearance, while scale and guide objects
 continue to own palettes, breaks and ordering. Physical spacings require
 scalar absolute \code{grid::unit()} values; \code{axis.text.orientation} is scalar.
 The preset themes share this signature and provide appearance defaults.
+}
+
+\section{Native detailed configuration}{
+
+Use standard \code{theme()} with the registered \verb{ggchord.axis.*}, \code{ggchord.seq.label},
+\code{ggchord.gene.label}, \code{ggchord.feature.label} and leader elements. Axis gap,
+tick lengths, text offset/orientation and overlap settings also have
+\verb{ggchord.axis.*} entries. Absolute scalar units are required for spacings.
+Existing short arguments remain convenient aliases; do not supply both
+spellings for one setting in the same call. Later theme() entries override
+earlier defaults following ordinary ggplot2 field-wise merging.
+
+Quantitative axis decoration uses ggchord.track.axis.line,
+ggchord.track.axis.text and ggchord.track.axis.title, plus absolute
+ggchord.track.axis.text.offset and ggchord.track.axis.title.offset.
+These inherit sequence-axis/text styling; each track may override its own
+decoration through guide_axis(theme = theme(axis.text = ..., axis.title = ...,
+axis.line = ...)) in scale_track_value_continuous(). Numerical domains,
+units, breaks and labels still belong to that scale; colours to scoped
+fill/colour scales; physical bands to position_track().
+Theme changes never filter data, alter HSPs or choose sequence directions.
 }
 
 \section{Standard ggplot2 settings}{

@@ -27,7 +27,7 @@ GeomChordSeq <- ggplot2::ggproto(
       bands$colour <- bands$seq_colour
       bands$fill <- bands$seq_colour
       grobs[[length(grobs) + 1L]] <- ggplot2::GeomPolygon$draw_panel(
-        bands, panel_params, coord, na.rm = na.rm
+        bands, panel_params, coord
       )
     }
     if (nrow(breaks)) {
@@ -96,10 +96,13 @@ ggchord_seq_style_geometry <- function(seq_arcs, params) {
 #'
 #' @param mapping Default NULL (uses pre-computed data)
 #' @param data Default NULL (retrieved automatically from the layout)
-#' @param seq_order Optional character vector. Specifies the drawing order of sequences
+#' @param seq_order Source IDs in display order. Repeats create display instances;
+#'   use names such as c(A_high='A', B='B', A_low='A') for stable instance IDs.
+#'   Repeated-entity HSPs require a unique between route on each link layer.
 #' @param seq_orientation Optional numeric (1 or -1). Sequence orientation, default 1
 #' @param seq_gap Optional numeric. Gap proportion between sequences, default
-#'   0.03 in chord coordinates. In [coord_collinear()], a positive distance
+#'   0.03 in chord coordinates. A named vector can set the gap after each
+#'   sequence; omitted IDs use the coordinate default. In [coord_collinear()], a positive distance
 #'   between consecutive backbones as a proportion of the longest backbone's
 #'   width, default 0.3. The final sequence's gap is unused in linear layouts.
 #'   Segmented linear displays measure it against the longest display row;
@@ -107,8 +110,12 @@ ggchord_seq_style_geometry <- function(seq_arcs, params) {
 #'   affect vertical placement.
 #' @param seq_radius Optional numeric (> 0). Sequence arc radius, default 1.0
 #' @param seq_curvature Optional numeric. Signed arc bow (0=straight, 1=standard arc, negative=opposite bow), default 1.0. Finite positive and negative values are accepted without clipping; magnitudes above 1 amplify the bow.
+#' @param length_mode `"proportional"` (default) retains source-length ratios;
+#'   `"equal"` gives each displayed sequence the same angular allocation or
+#'   linear span without modifying source lengths. Shared absolute scale bars
+#'   are unavailable in multi-sequence equal mode; local axes retain source units.
 #' @param seq_style Backbone geometry. `"auto"` uses a double backbone in
-#'   [coord_circular()] and the historical single backbone in [coord_chord()].
+#'   [coord_circular()] and a single backbone in [coord_chord()].
 #' @param seq_backbone_gap Gap between double backbone lines.
 #' @param seq_backbone_width Width of a band backbone.
 #' @param linewidth Arc line width, default 0.9
@@ -140,8 +147,10 @@ geom_seq <- function(mapping = NULL, data = NULL,
                      position = "identity",
                      show.legend = TRUE,
                      inherit.aes = FALSE,
+                     length_mode = c("proportional", "equal"),
                      ...) {
   show_legend_supplied <- !missing(show.legend)
+  length_mode <- match.arg(length_mode)
   linewidth_default <- missing(linewidth)
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
@@ -225,6 +234,7 @@ geom_seq <- function(mapping = NULL, data = NULL,
     seq_gap               = seq_gap,
     seq_radius            = seq_radius,
     seq_curvature         = seq_curvature,
+    length_mode           = length_mode,
     seq_style             = seq_style,
     seq_backbone_gap      = as.numeric(seq_backbone_gap),
     seq_backbone_width    = as.numeric(seq_backbone_width),

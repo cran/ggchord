@@ -25,6 +25,16 @@ ggchord_track_frame <- function(pos, id, layout) {
   path <- reference$path
   before <- pmax(1L, seq_len(nrow(path)) - 1L)
   after <- pmin(nrow(path), seq_len(nrow(path)) + 1L)
+  # A geometrically closed backbone has one tangent at its duplicated seam.
+  # One-sided endpoint differences cross even a narrow inward offset there.
+  # This is geometric closure, not an inference of biological circularity.
+  if (nrow(path) > 2L &&
+      sqrt((path$x[1L] - tail(path$x, 1L))^2 +
+           (path$y[1L] - tail(path$y, 1L))^2) <=
+        1e-10 * max(1, diff(range(path$x)), diff(range(path$y)))) {
+    before[1L] <- nrow(path) - 1L
+    after[nrow(path)] <- 2L
+  }
   dx <- path$x[after] - path$x[before]; dy <- path$y[after] - path$y[before]
   norm <- sqrt(dx^2 + dy^2)
   if (any(norm <= 0)) ggchord_stop("Track backbone has an undefined local normal")
@@ -49,9 +59,18 @@ ggchord_track_units <- function(normal, layout) {
   1 / sqrt((normal[, 1L] / units[1L])^2 + (normal[, 2L] / units[2L])^2)
 }
 
+ggchord_track_metric_vector <- function(vector, id, layout) {
+  if (isTRUE(layout$collinear) && isTRUE((layout$track_projection_axis %||% layout$seq_axis) %in% c("vertical", "sankey")))
+    return(cbind(-vector[, 2], vector[, 1]))
+  theta <- layout$radial_angles[id]
+  if (is.null(theta)) return(vector)
+  cbind(vector[,1] * cos(theta) - vector[,2] * sin(theta),
+    vector[,1] * sin(theta) + vector[,2] * cos(theta))
+}
+
 ggchord_track_point <- function(pos, id, offset_native, offset_mm, layout) {
   frame <- ggchord_track_frame(pos, id, layout)
-  offset <- offset_native + offset_mm * ggchord_track_units(frame$normal, layout)
+  offset <- offset_native + offset_mm * ggchord_track_units(ggchord_track_metric_vector(frame$normal, id, layout), layout)
   frame$base + frame$normal * offset
 }
 
@@ -111,17 +130,19 @@ ggchord_track_polygons_overlap <- function(a, b) {
 }
 
 ggchord_layout_tracks <- function(plot, layout, registry, inputs) {
+  layout$track_projection_axis <- plot$coordinates$collinear_seq_axis
   layers <- Filter(function(l) identical(l$ggchord_type, "track"), plot$layers)
   seqs <- layout$seqs; ref <- layout$sequence_reference
   data <- lapply(layers, function(l) ggchord_resolve_layer_input(l, plot$ggchord$data$seq_data))
   for (i in seq_along(data)) {
     d <- data[[i]]; p <- layers[[i]]$ggchord_params
     if (is.null(d)) ggchord_stop("Track layers require explicit data")
-    cols <- if (p$track_kind == "line") "pos" else c("start", "end")
+    cols <- if (!is.null(p$native_geom) || p$track_kind == "line") "pos" else c("start", "end")
     ggchord_require_columns(d, c("accver", cols), "track layer")
     d$accver <- ggchord_conversion_ids(d$accver, "track layer")
     if (any(!d$accver %in% seqs)) ggchord_stop("Track input contains an unknown displayed accession; focus to window IDs explicitly")
-    for (name in cols) if (!is.numeric(d[[name]]) || any(!is.finite(d[[name]])) || any(d[[name]] != floor(d[[name]])))
+    for (name in cols) if (!is.numeric(d[[name]]) || any(!is.finite(d[[name]])) ||
+        (is.null(p$native_geom) && any(d[[name]] != floor(d[[name]]))))
       ggchord_stop("Track genomic coordinates must be finite integers")
     if (p$track_kind != "tile") {
       ggchord_require_columns(d, "track_value", "quantitative track")
@@ -131,7 +152,7 @@ ggchord_layout_tracks <- function(plot, layout, registry, inputs) {
     if (anyNA(d$group)) ggchord_stop("Track series group IDs must be non-missing")
     if (isTRUE(p$closed) && (!isTRUE(layout$circular) || (plot$coordinates$circular_gap %||% 0) != 0))
       ggchord_stop("closed=TRUE requires coord_circular(gap=0)")
-    if (p$track_kind == "line") {
+    if (p$track_kind == "line" && is.null(p$native_geom)) {
       groups <- split(seq_len(nrow(d)), interaction(match(d$accver, unique(d$accver)),
         match(d$group, unique(d$group)), drop = TRUE))
       for (g in groups) if (length(g) > 1L && any(diff(d$pos[g]) <= 0))
@@ -163,6 +184,7 @@ ggchord_layout_tracks <- function(plot, layout, registry, inputs) {
     if (is.null(sc)) sc <- scale_track_value_continuous(id)
     sc <- sc$clone()
     values <- unlist(lapply(numeric, function(i) c(data[[i]]$track_value,
+      data[[i]]$track_ymin, data[[i]]$track_ymax,
       if (layers[[i]]$ggchord_params$track_kind == "bar") layers[[i]]$ggchord_params$baseline)), use.names = FALSE)
     finite <- values[!is.na(values)]
     transformed <- suppressWarnings(sc$transform(finite))
@@ -285,7 +307,9 @@ ggchord_layout_tracks <- function(plot, layout, registry, inputs) {
         group = group, source_row = rep_len(source, nrow(xy)), accver = unname(seq),
         track_id = id, label = NA_character_, .component = component, stringsAsFactors = FALSE)
     }
-    if (p$track_kind == "line") {
+    if (!is.null(p$native_geom)) {
+      geometry <- list(ggchord_track_native_geometry(d, p, layout, sc, at_value))
+    } else if (p$track_kind == "line") {
       usable <- !is.na(mapped)
       outside <- d$pos < 1 | d$pos > unname(ref$lens[d$accver])
       if (any(outside) && p$bounds == "error") ggchord_stop("Track sample coordinate outside sequence length")
@@ -351,16 +375,22 @@ ggchord_layout_tracks <- function(plot, layout, registry, inputs) {
   layout$track_registry <- band_table; layout$track_scales <- scales
   layout$track_obstacles <- obstacle[names(ggchord_empty_obstacles())]
   layout$track_diagnostics <- ggchord_rbind_fill(diagnostics)
+  layout$track_statistics <- stats::setNames(data,
+    vapply(layers, function(l) l$ggchord_layer_id, character(1)))
+  layout$track_source_data <- stats::setNames(lapply(seq_along(layers), function(i)
+    layers[[i]]$ggchord_params$track_sources %||% data[[i]]),
+    vapply(layers, function(l) l$ggchord_layer_id, character(1)))
   list(layout = layout, registry = registry, inputs = inputs)
 }
 
-ggchord_track_axes <- function(layout, registry) {
+ggchord_track_axes <- function(layout, registry, plot) {
   axes <- list()
   for (id in names(layout$track_scales)) {
     sc <- layout$track_scales[[id]]
     band <- layout$track_registry[layout$track_registry$track_id == id, , drop = FALSE][1L, ]
     if (!isTRUE(sc$ggchord_track_axis) || band$domain_status != "trained") next
     owner <- band$source_layers[[1L]][1L]
+    style <- ggchord_track_axis_style(plot, id)
     # One explicit numerical reference per shared track domain. Automatic
     # breaks use its endpoints; explicit user breaks/labels remain untouched.
     breaks <- if (ggplot2::is_waiver(sc$breaks)) unique(sc$get_limits()) else sc$get_breaks()
@@ -378,8 +408,11 @@ ggchord_track_axes <- function(layout, registry) {
     ends <- point(c(0, 1)); ticks <- point(fractions)
     normal <- ggchord_track_frame(anchor, seq, layout)$normal[1L, ]
     tangent <- matrix(c(-normal[2L], normal[1L]), nrow = 1L)
-    spacing <- ggchord_track_units(tangent, layout)
-    label_points <- ticks + matrix(rep(as.numeric(tangent) * spacing * 2.5,
+    spacing <- ggchord_track_units(ggchord_track_metric_vector(tangent, seq, layout), layout)
+    screen_tangent <- ggchord_track_metric_vector(tangent, seq, layout)[1L, ]
+    label_extent <- ggchord_track_axis_extent(labels, style$axis_text_params, screen_tangent)
+    text_distance <- if (style$text_offset_locked) style$text_offset_mm else max(style$text_offset_mm, label_extent + 1)
+    label_points <- ticks + matrix(rep(as.numeric(tangent) * spacing * text_distance,
       length(fractions)), ncol = 2L, byrow = TRUE)
     line <- data.frame(x = ends[, 1], y = ends[, 2], group = -1L,
       source_row = NA_integer_, accver = seq, track_id = id, label = NA_character_,
@@ -390,20 +423,34 @@ ggchord_track_axes <- function(layout, registry) {
       track_id = id, label = as.character(labels), .component = "track_axis_text")
     title <- if (ggplot2::is_waiver(sc$name)) id else as.character(sc$name)
     if (length(title) && !is.na(title) && nzchar(title)) {
-      value <- point(.5) + tangent * spacing * 5.5
       unit <- sc$ggchord_track_unit
       if (!is.null(unit) && nzchar(unit)) title <- paste0(title, " (", unit, ")")
+      title_extent <- ggchord_track_axis_extent(title, style$axis_title_params, screen_tangent)
+      title_distance <- if (style$title_offset_locked) style$title_offset_mm else
+        max(style$title_offset_mm, text_distance + label_extent + title_extent + 1)
+      value <- point(.5) + tangent * spacing * title_distance
       title_row <- data.frame(x = value[1, 1], y = value[1, 2], group = -1000L,
         source_row = NA_integer_, accver = seq, track_id = id, label = title,
-        .component = "track_axis_text")
+        .component = "track_axis_title")
       text <- ggchord_rbind_fill(list(text, title_row))
     }
     out <- ggchord_rbind_fill(list(line, text))
+    out$.axis_hidden <- FALSE
+    for (kind in c("line", "text", "title")) {
+      at <- which(out$.component == paste0("track_axis_", kind))
+      params <- style[[paste0("axis_", kind, "_params")]]
+      out$.axis_hidden[at] <- isTRUE(params$hidden)
+      for (name in setdiff(names(params), "hidden")) if (length(params[[name]])) {
+        key <- paste0(".axis_", name)
+        if (is.null(out[[key]])) out[[key]] <- rep(NA, nrow(out))
+        out[[key]][at] <- params[[name]]
+      }
+    }
     # Add blank input columns so visual mappings can evaluate on axis rows.
     base <- registry[[owner]]$track
     out <- ggchord_rbind_fill(list(base, out))
     registry[[owner]]$track <- out
-    axes[[id]] <- ggchord_rbind_fill(list(line, text))
+    axes[[id]] <- out[out$.component %in% c("track_axis_line", "track_axis_text", "track_axis_title"), , drop = FALSE]
   }
   list(registry = registry, axes = ggchord_rbind_fill(axes) %||% data.frame())
 }

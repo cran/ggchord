@@ -334,7 +334,10 @@ ggchord_text_boxes <- function(df,
   h <- numeric(n)
   valid <- !is.na(texts) & nzchar(texts)
   if (any(valid)) {
-    close_device <- ggchord_measurement_device(text = texts[valid])
+    legacy_device <- names(grDevices::dev.cur()) %in% c("pdf", "postscript")
+    unicode <- any(utf8ToInt(paste(texts[valid], collapse = "")) > 127L)
+    close_device <- if (grDevices::dev.cur() > 1L && !(legacy_device && unicode))
+      function() invisible(NULL) else ggchord_measurement_device(text = texts[valid])
     on.exit(close_device())
     valid_rows <- which(valid)
     for (i in valid_rows) {
@@ -352,8 +355,27 @@ ggchord_text_boxes <- function(df,
         grid::grobHeight(grob), "inches", valueOnly = TRUE
       ) * units_per_inch
     }
+    close_device()
   }
 
+  composite <- if ('.ggchord_composite_label' %in% names(df) &&
+      all(c('enzyme_label', 'coordinate_label', 'enzyme_fontface') %in% names(df)))
+    which(df$.ggchord_composite_label %in% TRUE & valid) else integer()
+  if (length(composite)) {
+    exact <- ggchord_site_label_metrics(df$enzyme_label[composite], df$coordinate_label[composite],
+      sizes[composite], families[composite], df$enzyme_fontface[composite],
+      lineheights[composite], units_per_inch)
+    w[composite] <- exact$width; h[composite] <- exact$height
+    hjust[composite] <- .5
+  }
+  uniform_sites <- if ('.ggchord_composite_label' %in% names(df))
+    which(df$.ggchord_composite_label %in% FALSE & valid) else integer()
+  if (length(uniform_sites)) {
+    exact <- ggchord_restriction_text_metrics(texts[uniform_sites], sizes[uniform_sites],
+      units_per_inch, parse = FALSE, fontface = fontfaces[uniform_sites],
+      family = families[uniform_sites], lineheight = lineheights[uniform_sites])
+    w[uniform_sites] <- exact$width; h[uniform_sites] <- exact$height
+  }
   cos_a <- cos(angles)
   sin_a <- sin(angles)
   cx_off <- (0.5 - hjust) * w * cos_a - (0.5 - vjust) * h * sin_a
@@ -379,13 +401,39 @@ ggchord_text_boxes <- function(df,
 # text anchor. This is shared by collision detection, leader clipping and the
 # renderer so all three use the same curved baseline and local tangents.
 ggchord_arc_text_layout <- function(text, units_per_inch = .35,
-                                     box_padding = 0) {
+                                     box_padding = 0, respect_justification = FALSE) {
   if (!nrow(text)) return(list(glyphs = data.frame(), boxes =
     ggchord_text_boxes(data.frame()), owners = integer()))
   glyphs <- list()
   boxes <- list()
   owners <- integer()
   for (i in seq_len(nrow(text))) {
+    if (!is.na(text$text[i]) && grepl("\n", text$text[i], fixed=TRUE)) {
+      lines <- strsplit(as.character(text$text[i]), "\n", fixed=TRUE)[[1L]]
+      centre <- atan2(text$text_y[i],text$text_x[i])
+      radius <- sqrt(text$text_x[i]^2+text$text_y[i]^2)
+      tangent <- centre*180/pi+90
+      difference <- ((text$text_angle[i]-tangent+180)%%360)-180
+      direction <- if(abs(difference)>90) -1 else 1
+      sample <- text[i,,drop=FALSE];sample$text <- "Mg"
+      sample$text_angle <- 0
+      pitch <- ggchord_text_boxes(sample,units_per_inch=units_per_inch)$h *
+        (text$lineheight[i] %||% 1.2)
+      for (line in seq_along(lines)) {
+        row <- text[i,,drop=FALSE];row$text <- lines[line]
+        line_radius <- radius-direction*((length(lines)+1)/2-line)*pitch
+        row$text_x <- line_radius*cos(centre);row$text_y <- line_radius*sin(centre)
+        part <- ggchord_arc_text_layout(row,units_per_inch,box_padding,respect_justification)
+        if (nrow(part$glyphs)) {
+          part$glyphs$.arc_parent_group <- text$group[i] %||% i
+          part$glyphs$.arc_line <- line
+          glyphs[[length(glyphs)+1L]] <- part$glyphs
+          boxes[[length(boxes)+1L]] <- part$boxes
+          owners <- c(owners,rep(i,nrow(part$boxes)))
+        }
+      }
+      next
+    }
     chars <- strsplit(enc2utf8(as.character(text$text[i])), "", fixed = TRUE)[[1L]]
     if (!length(chars) || is.na(text$text[i]) || !nzchar(text$text[i])) next
     measured <- text[rep(i, length(chars)), , drop = FALSE]
@@ -405,6 +453,7 @@ ggchord_arc_text_layout <- function(text, units_per_inch = .35,
     total <- sum(advance) + tracking * max(0, length(chars) - 1L)
     along <- cumsum(c(0, utils::head(advance + tracking, -1L))) + advance / 2 -
       total / 2
+    if (respect_justification) along <- along + (.5 - text$hjust[i]) * total
     radius <- sqrt(text$text_x[i]^2 + text$text_y[i]^2)
     centre_angle <- atan2(text$text_y[i], text$text_x[i])
     increasing_tangent <- (centre_angle * 180 / pi + 90) %% 360
@@ -583,7 +632,7 @@ ggchord_box_overlaps_feature <- function(box, polygon, tol = .004) {
     for (j in seq_len(nrow(polygon_xy) - 1L)) {
       if (ggchord_segment_intersects(
           closed_corners[i, ], closed_corners[i + 1L, ],
-          polygon_xy[j, ], polygon_xy[j + 1L, ])) return(TRUE)
+          polygon_xy[j, ], polygon_xy[j + 1L, ], tol = tol)) return(TRUE)
     }
   }
   # Dense feature paths make a vertex-in-box check an inexpensive and robust

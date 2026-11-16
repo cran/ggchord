@@ -4,7 +4,7 @@ CoordCollinear <- ggplot2::ggproto("CoordCollinear", CoordGgchord)
 #' Linear multi-sequence collinearity coordinates
 #'
 #' Draws sequences as left-aligned horizontal backbones, ordered from top to
-#' bottom by `geom_seq(seq_order = ...)`. All sequences share one linear bp
+#' bottom by `geom_seq(seq_order = ...)`. All sequences share one linear sequence-unit
 #' scale. `seq_orientation = -1` reverses a sequence together with its features,
 #' links and axis without modifying the input data.
 #'
@@ -18,9 +18,10 @@ CoordCollinear <- ggplot2::ggproto("CoordCollinear", CoordGgchord)
 #'
 #' Explicit sequence radius, curvature, ring mappings/scales and sequence-label
 #' radius cannot be converted and produce an error. Remove these arguments
-#' when switching from [coord_chord()]. Circular-only primer, restriction-site
-#' and centre-label layers require [coord_circular()]; use [geom_feature()] for
-#' general linear annotations. Cross-track links may cross intervening tracks.
+#' when switching from [coord_chord()]. Primer, restriction-site and centre-label
+#' layers are unsupported here; use [coord_circular()] for single-sequence maps
+#' or [geom_feature()] for general linear annotations. Single-sequence chord
+#' compositions remain available. Cross-track links may cross intervening tracks.
 #' Explicit link control points use the exported linear layout x/y units;
 #' the longest backbone has width 2 (the longest complete display row when
 #' `segments` is supplied).
@@ -46,14 +47,17 @@ CoordCollinear <- ggplot2::ggproto("CoordCollinear", CoordGgchord)
 #'
 #' With `segments`, each accession remains an independent window but windows
 #' sharing `row_id` occupy one display row. Their table order is left to right;
-#' `align` applies to the whole row. `segment_gap` reserves display space in bp
-#' scale units, independently of omitted genomic length. Internal ends receive
+#' `align` applies to the whole row. `segment_gap` reserves display space in native
+#' sequence units, independently of omitted genomic length. Internal ends receive
 #' break marks. Use [segment_ggchord_data()] to crop/split input first. Local
 #' reversal comes from the table's `orientation`, so automatic orientation,
 #' explicit sequence orientation and `anchor` conflict with this mode. Ribbon
 #' adjacency follows display rows; same-row ribbons are omitted with a report,
 #' and explicit same-row pairs or point links are unsupported.
 #'
+#' @param seq_axis `"horizontal"` (default) or `"vertical"`. Vertical mode
+#'   projects sequence-local geometry onto upright columns and lays out text
+#'   in its own readable orientation; it does not change source strands.
 #' @param align Display alignment: `"left"` (default), `"center"`, or
 #'   `"right"`. Applied to the full sequence or the interval supplied by
 #'   `anchor`.
@@ -71,7 +75,7 @@ CoordCollinear <- ggplot2::ggproto("CoordCollinear", CoordGgchord)
 #' @param segments Optional data frame with unique window `accver`, `row_id`
 #'   and `orientation` (1 or -1). Every displayed accession must be declared.
 #'   Each window has its own local coordinates and reversible source metadata.
-#' @param segment_gap Positive display gap in bp scale units when `segments`
+#' @param segment_gap Positive display gap in native sequence units when `segments`
 #'   is supplied, default 100. It never implies genomic continuity.
 #' @inheritParams coord_chord
 #' @return A ggplot2 Coord object for composition with a ggchord plot.
@@ -96,7 +100,9 @@ coord_collinear <- function(
     fit = c("labels", "geometry", "manual"),
     align = c("left", "center", "right"), anchor = NULL,
     orientation = c("manual", "auto"), min_support = 0.1,
-    segments = NULL, segment_gap = 100) {
+    segments = NULL, segment_gap = 100,
+    seq_axis = c("horizontal", "vertical")) {
+  seq_axis <- match.arg(seq_axis)
   fit <- match.arg(fit)
   align <- match.arg(align)
   orientation <- match.arg(orientation)
@@ -129,14 +135,22 @@ coord_collinear <- function(
   coord$collinear_min_support <- as.numeric(min_support)
   coord$collinear_segments <- segments
   coord$collinear_segment_gap <- segment_gap
+  coord$collinear_seq_axis <- seq_axis
   coord
 }
 
 ggchord_validate_coord_contract <- function(plot) {
   if (!isTRUE(plot$coordinates$ggchord_collinear)) return(invisible(plot))
+  if (isTRUE(plot$coordinates$ggchord_radial) && !inherits(plot$facet, "FacetNull"))
+    ggchord_stop("coord_radial_synteny(): facets are unsupported")
   for (layer in plot$layers) {
     params <- layer$ggchord_params
     if (is.null(params)) next
+    if (isTRUE(plot$coordinates$ggchord_radial) && identical(params$type, "seq_scale"))
+      ggchord_stop("coord_radial_synteny(): shared straight scale bars are unsupported; use the per-spoke sequence axes")
+    if (isTRUE(plot$coordinates$ggchord_radial) &&
+        !identical(params$link_branch %||% "none", "none"))
+      ggchord_stop("coord_radial_synteny(): shared branches are unsupported; use link_branch='none'")
     if (identical(params$type, "seq")) {
       if (!is.null(plot$coordinates$collinear_segments) &&
           !is.null(params$seq_orientation)) ggchord_stop(

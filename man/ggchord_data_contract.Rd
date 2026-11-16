@@ -10,8 +10,9 @@ length from features, verifies homology experimentally, or adds plot layers.
 }
 \details{
 \describe{
-\item{Read}{The six \code{read_*()} functions parse local files. Both
-\code{file} and \code{files} accept path vectors and glob patterns. When
+\item{Read}{The \code{read_*()} functions parse local files. Both
+\code{file} and \code{files}, when both are exposed by a reader, accept
+path vectors and glob patterns. When
 both are supplied, \code{file} precedes \code{files}; matches expand in
 pattern order, and each normalized path is read once, retaining its first
 supplied spelling. Missing, empty, unmatched or directory paths fail.
@@ -33,8 +34,8 @@ conversion attribute. Optional packages are never installed automatically.}
 \item{Validate}{\code{validate_ggchord_data()} reports all collected issues
 without changing input. \code{strict = TRUE} stops after collection if
 errors exist. Logical argument errors stop immediately. This validator
-describes constructor seq/ribbon/gene tables; generic unknown-strand
-features belong in preparation's named feature collections. Coordinate
+describes constructor seq/ribbon/gene tables and the unified
+\code{feature_data} input, including unknown and bidirectional strands. Coordinate
 checks do not prove an alignment or a biological annotation.}
 \item{Clean}{\code{clean_ggchord_data()} explicitly applies selected
 policies and reports original rows and old/new values. Its historical
@@ -54,12 +55,32 @@ composed original ribbon source sets.}
 }
 \section{Coordinates and direction}{
 
-Genomic intervals are one-based inclusive: \code{start == end} is one base.
+\code{ggchord(feature_data = ...)} supplies default data for generic annotation
+layers. Gene layers select explicitly classified gene/CDS records; tRNA/rRNA
+and unclassified annotations remain generic features. Untyped legacy
+\code{gene_data} retains its directional semantics. Do not provide both inputs.
+Explicit layer data takes priority; mixed gene/feature compositions should
+use disjoint data subsets. Independent layers do not remove each other's rows.
+
+Native coordinates are one-based inclusive. Sequence tables may declare
+\code{sequence_unit = "bp"} or \code{"aa"}; omitted units mean bp. A plot uses one unit.
+Full protein lengths must be provided; alignment endpoints do not establish
+full lengths. Protein annotations use generic feature layers. Gene, primer
+and restriction layers require nucleotide input. A circular protein layout
+is a visual arrangement and does not declare circular biological topology.
+\code{start == end} is one base or one residue in the declared unit.
 The explicit adapters enforce integral coordinates. Legacy constructor
 validation, cleaning and raw focus accept finite numeric positions; their
 success alone does not certify integral genomic coordinates. Prefer integral
 windows for biological data and use adapters before these legacy entries
 when strict integer checks are required.
+BEDPE keeps first/second anchors as query/subject, preserves original fields,
+and follows paired-object negative-strand endpoint ordering. It does not
+infer identity or read support. Unknown anchors fail by default; the explicit
+\code{read_bedpe(unmapped = "keep")} auditing policy retains missing canonical
+coordinates and mapping flags. Filter complete anchors before adaptation or
+plotting; keeping them is not evidence that they are drawable.
+
 BED/PAF half-open \code{[a,b)} becomes \code{[a+1,b]}; zero-width records
 cannot become nonempty intervals and are rejected. Link endpoint order can
 encode relative direction; it is not a circular-origin join. Feature
@@ -93,6 +114,12 @@ correspondence, rounds to bp and marks estimated length; identity is retained,
 not recalculated. Segment preparation creates separate windows and explicit
 gaps; it never concatenates their biological sequences. Position mapping is
 invertible within the selected linear window and rejects segmented gaps.
+\code{\link[=translate_ggchord_cds]{translate_ggchord_cds()}} extracts real forward source strings through the
+same CDS map and delegates translation to optional Biostrings. It requires
+known genetic codes, retains stops, reports partial trimming and preserves
+the three genomic positions of every codon.
+\code{\link[=register_ggchord_alignment]{register_ggchord_alignment()}} registers exact source/column cells for
+independent Cartesian detail panels, without deriving any bases from HSPs.
 CDS projection uses observed complete codons and explicit phase/partial
 policies; it does not translate with the stored genetic-code ID. Protein
 identity/length remain source-prefixed metadata when links are projected.
@@ -126,6 +153,19 @@ protein search uses the standard codon table without alternative starts,
 splicing or circular-origin protein matches. Source \code{geneticCode}
 metadata is not interpreted as a selectable translation table. Use exact DNA
 mode or an external code-aware analysis for nonstandard translation.
+}
+
+\section{Character alignments}{
+
+\code{\link[=read_aligned_fasta]{read_aligned_fasta()}} is a single-alignment, single-file reader; it does
+not concatenate independent alignments or expose a files argument.
+\code{\link[=as_ggchord_alignment]{as_ggchord_alignment()}} distinguishes alignment columns from nullable
+source positions. Gaps consume columns only. Default positions refer to
+ungapped input fragments, not complete genomes. Explicit source metadata
+can verify supplied characters; it does not independently establish homology.
+\code{\link[=map_alignment_position]{map_alignment_position()}} performs exact lookups without interpolation.
+\code{\link[=geom_residue]{geom_residue()}} draws local cells in ordinary Cartesian ggplots, outside
+the biological backbone Coord pipeline. No new alignment is computed.
 }
 
 \seealso{

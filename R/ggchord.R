@@ -6,6 +6,9 @@
 
 # Global variable declarations (to avoid R CMD check NOTEs)
 globalVariables(c(
+  ".flow_from", ".flow_tip", ".flow_to", ".fusion_row", ".fusion_x", ".fusion_y",
+  ".q_n", ".s_n", ".track_group", ".track_input_index", ".track_width", ".track_x",
+  "pos", "track_value", "key",
   "x", "y", "group", "pident", "fill", "colour", "strand", "anno", "accver",
   "text_x", "text_y", "text", "text_angle", "hjust", "vjust",
   "x0", "y0", "x1", "y1", "xend", "yend", ".component",
@@ -14,10 +17,10 @@ globalVariables(c(
   "linetype", "zcolour", "zregionfill", "zoutline", "zlinetype",
   "outline_col", "linetype_val", "value", "source_row", "direction",
   "seq_colour", "ribbon_fill", "ribbon_alpha",
-  "ribbon_colour", "ribbon_linetype", "gene_fill", "feature_fill",
+  "ribbon_colour", "ribbon_linetype", ".ggchord_ribbon_linewidth", "gene_fill", "feature_fill",
   "feature_shape", "seq_ring", "bundle_n", "bundle_weight", "density",
   "region_fill", ".bundle_n", ".bundle_weight", ".bundle_density",
-  ".feature_shape_raw", ".feature_boundaries", "feature_label_colour",
+  ".feature_shape_raw", ".feature_boundaries", ".feature_internal_exit", "feature_label_colour",
   "feature_label_fill", "feature_label_mode",
   "feature_label_orientation", "plotmath_label", "combined_label",
   "enzyme_label", "coordinate_label", "label_order", "enzyme_fontface",
@@ -37,18 +40,29 @@ globalVariables(c(
 #'
 #' @param seq_data data.frame/tibble with accver and length, or a `GRanges`,
 #'   `Seqinfo` or `GInteractions` object with known full sequence lengths,
-#'   or a named nucleotide Biostrings `XStringSet`. Unnamed sequence objects must first
-#'   use [as_ggchord_seq()] with explicit `ids`.
-#'   Optional S4 inputs use [as_ggchord_seq()]. When present,
-#'   \code{sequence_unit} must be \code{"bp"}; amino-acid intervals require an
-#'   explicit CDS projection, and arbitrary character widths are not bp lengths.
+#'   or a named nucleotide or protein Biostrings `XStringSet`. Unnamed sequence
+#'   objects must first use [as_ggchord_seq()] with explicit `ids`.
+#'   Optional S4 inputs use [as_ggchord_seq()]. The `sequence_unit` column is
+#'   `"bp"` (default when omitted) or `"aa"`. All rows use the same unit.
+#'   Protein lengths come from complete proteins. Native aa plots accept
+#'   links and generic features; gene, primer and restriction layers require bp.
+#'   Arbitrary character widths are not biological sequence lengths.
 #' @param ribbon_data Optional alignment table with qaccver, saccver, qstart,
 #'   qend, sstart and send. length and pident are optional unless requested
 #'   by a mapping, filter or statistic. A `GInteractions` object uses
 #'   [as_ggchord_link()] without inventing identity or alignment length.
-#' @param gene_data Optional table with accver, start, end and strand.
-#'   Annotation (anno) may be omitted. Directional `GRanges` are accepted;
-#'   use `geom_feature(data = ...)` for unknown-strand intervals.
+#' @param gene_data Compatible legacy annotation input. The third positional
+#'   argument retains its meaning. Use `feature_data` in new code; a non-NULL
+#'   legacy input emits one message at construction, never during rendering.
+#'   Untyped legacy tables retain their directional gene semantics. No removal
+#'   version is scheduled. Do not supply both annotation inputs.
+#' @param feature_data Optional unified annotation table or `GRanges`. Requires
+#'   `accver`, `start`, `end`; absent strand becomes unknown (`"."`). Generic
+#'   feature layers use the full table. Default gene layers select `gene`/`CDS`
+#'   from `feature_class`, `type`, or `role` (in that priority order), and require
+#'   known strands. tRNA/rRNA remain generic features. Explicit layer `data`
+#'   overrides the constructor input. Use disjoint subsets when combining
+#'   gene and feature layers; each layer keeps its own data independently.
 #' @param debug Logical. Whether to output debug information, default FALSE
 #' @param validate Character, default \code{"warn"}. How to run the structured
 #'   input-data validation (see \code{\link{validate_ggchord_data}}):
@@ -63,6 +77,8 @@ globalVariables(c(
 #' @return A ggchord object (inherits from ggplot) to which geom_* layers can be added with +
 #' @seealso [ggchord_api_contract], [ggchord_data_contract],
 #'   [ggchord_layout_contract], [view_ggchord()]
+#' @importFrom utils head
+#' @importFrom grDevices as.raster
 #' @export
 #'
 #' @examples
@@ -77,11 +93,11 @@ globalVariables(c(
 #' links <- ribbon_data_example |>
 #'   select(qaccver, saccver, qstart, qend, sstart, send)
 #' genes <- gene_data_example |>
-#'   transmute(accver, start, end, strand = source_strand)
+#'   transmute(accver, start, end, strand = source_strand, type = "CDS")
 #' p <- ggchord(
 #'   seq_data = seqs,
 #'   ribbon_data = links,
-#'   gene_data = genes
+#'   feature_data = genes
 #' ) +
 #'   geom_seq() +
 #'   geom_link_ribbon() +
@@ -94,8 +110,11 @@ ggchord <- function(
     gene_data = NULL,
     debug = FALSE,
     validate = c("warn", "error", "none"),
+    feature_data = NULL,
     ...
 ) {
+  if (!is.null(gene_data) && !is.null(feature_data)) ggchord_stop(
+    "ggchord(): use only one of gene_data and feature_data; merge annotations explicitly or supply layer data")
   if (inherits(seq_data, "GRanges") || inherits(seq_data, "Seqinfo") ||
       inherits(seq_data, "GInteractions") || inherits(seq_data, "XStringSet") ||
       inherits(seq_data, "XString")) seq_data <- as_ggchord_seq(seq_data)
@@ -108,16 +127,14 @@ ggchord <- function(
   }
   seq_data <- ggchord_normalize_accver(seq_data)
   gene_data <- ggchord_normalize_accver(gene_data)
-  if (is.data.frame(seq_data) && "sequence_unit" %in% names(seq_data)) {
-    units <- as.character(seq_data$sequence_unit)
-    if (any(units %in% "aa")) ggchord_stop(
-      "ggchord(): amino-acid sequence widths are not nucleotide coordinates; ",
-      "use build_ggchord_cds() with project_ggchord_features() or ",
-      "project_ggchord_links(), then supply known nucleotide sequence lengths")
-    if (anyNA(units) || any(units != "bp")) ggchord_stop(
-      "ggchord(): sequence_unit must be 'bp'; supply DNA/RNA sequences or ",
-      "an explicit table of known nucleotide lengths rather than character widths")
-  }
+  feature_data <- ggchord_normalize_feature_input(feature_data)
+  sequence_unit <- ggchord_sequence_unit(seq_data, "ggchord()")
+  ggchord_check_interval_unit(ribbon_data, sequence_unit, "ggchord()")
+  ggchord_check_interval_unit(gene_data, sequence_unit, "ggchord()")
+  ggchord_check_interval_unit(feature_data, sequence_unit, "ggchord()")
+  if (identical(sequence_unit, "aa") && !is.null(gene_data)) ggchord_stop(
+    "ggchord(): gene_data requires bp coordinates; use geom_feature() for protein domains")
+
 
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
@@ -147,7 +164,7 @@ ggchord <- function(
     seq_data, ribbon_data, gene_data, strict = FALSE,
     check_coordinates = validate != "none",
     check_duplicates = validate != "none",
-    check_self_links = validate != "none"
+    check_self_links = validate != "none", feature_data = feature_data
   )
   structural_errors <- ggchord_structural_validation_errors(validation_result)
   if (nrow(structural_errors) > 0) {
@@ -191,19 +208,24 @@ ggchord <- function(
   #    on the plot itself so the object is fully self-contained.
   # ====================================================================
   p <- ggplot2::ggplot() +
-    coord_chord(rotation = 45) +
+    coord_chord(rotation = 0) +
     theme_ggchord()
 
   p$ggchord <- list(
     data   = list(seq_data = seq_data, ribbon_data = ribbon_data,
-                  gene_data = gene_data),
-    global = list(rotation = 45, debug = debug, validate = validate),
+                  gene_data = gene_data, feature_data = feature_data),
+    sources = list(sequence = seq_data, relationship = ribbon_data,
+      gene = gene_data, feature = feature_data),
+    global = list(rotation = 0, debug = debug, validate = validate),
     validation = validation,
     # Shared reference environment for plot-owned layout caching.
     ref    = new.env(),
     layout = NULL
   )
   class(p) <- c("ggchord", class(p))
+  if (!is.null(gene_data)) message(
+    "ggchord(): gene_data is retained for compatibility; use feature_data in new code. ",
+    "For untyped legacy tables, add type = 'gene' or supply explicit geom_gene(data = ...).")
   p
 }
 # ====================================================================
@@ -223,6 +245,9 @@ ggchord <- function(
   old_error <- ggchord_disable_debug()
   on.exit(options(error = old_error), add = TRUE)
 
+  # Compose ordinary lists through the same per-component bookkeeping as +.
+  if (identical(class(e2), "list")) return(Reduce(`+`, e2, init = e1))
+
   old_settings <- attr(e1$theme, "ggchord.settings")
   new_settings <- if (inherits(e2, "theme")) {
     attr(e2, "ggchord.settings")
@@ -238,6 +263,11 @@ ggchord <- function(
       value <- e2[[paste0("legend.", field)]]
       if (!is.null(value)) new_settings$legend[[field]] <- value
     }
+  }
+  if (inherits(e2, 'theme') && is.null(attr(e2, 'ggchord.settings')) &&
+      !is.null(e2[['ggchord.axis.text.offset']])) {
+    new_settings <- new_settings %||% ggchord_plot_settings(e1)
+    new_settings$axis$text.offset.explicit <- TRUE
   }
   if (inherits(e2, "Scale")) {
     aesthetic <- e2$aesthetics[1L]
@@ -269,6 +299,14 @@ ggchord <- function(
     )
   } else {
     p <- NextMethod()
+  }
+  if (inherits(e2, "theme")) {
+    incoming <- attr(e2, "ggchord.explicit_theme") %||% as.list(e2)
+    p$ggchord$theme_explicit <- ggchord_merge_theme_constraints(
+      e1$ggchord$theme_explicit %||% list(), incoming, isTRUE(attr(e2, "complete")))
+    if (is.null(attr(e2, "ggchord.settings"))) {
+      p$ggchord$native_theme <- if (is.null(e1$ggchord$native_theme)) e2 else e1$ggchord$native_theme + e2
+    } else p$ggchord$native_theme <- NULL
   }
   ggchord_validate_coord_contract(p)
   # ggplot2 copies plot metadata, but environments remain shared references.

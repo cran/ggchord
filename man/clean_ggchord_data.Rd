@@ -13,7 +13,8 @@ clean_ggchord_data(
   reversed_interval = c("sort", "drop", "error", "keep"),
   invalid_pident = c("clip", "drop", "error", "keep"),
   empty_annotation = c("keep", "drop", "replace"),
-  replacement_annotation = "unannotated"
+  replacement_annotation = "unannotated",
+  feature_data = NULL
 )
 }
 \arguments{
@@ -63,6 +64,8 @@ missing/empty \code{anno} in gene data: \code{"replace"} fills them with
 
 \item{replacement_annotation}{Character, default \code{"unannotated"}.
 Replacement annotation used when \code{empty_annotation = "replace"}.}
+
+\item{feature_data}{Unified annotation input; mutually exclusive with gene_data.}
 }
 \value{
 A list with four components: \code{seq_data}, \code{ribbon_data},
@@ -77,7 +80,7 @@ ggchord tables and returns the cleaned copies plus a full report. The
 original data frames are never modified. Nothing is dropped silently: every
 change (including every dropped row) is recorded in \code{report} with the
 original row number, the reason, the original value(s) and the new value(s).
-Its historical sorting default differs deliberately from preparation's
+Its default sorting policy differs from preparation's
 direction-preserving default. Use \code{reversed_interval = "keep"} for
 directional links and circular-origin features; sorting endpoints loses
 information that a later workflow cannot reconstruct.

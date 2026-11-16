@@ -1,6 +1,8 @@
-#' Scales for point links
+#' Scales for point links and alignment segments
 #'
 #' Point-link aesthetics are independent of sequence and ribbon aesthetics.
+#' Automatically generated numeric pident mappings use the 0-100 domain and
+#' ticks 0/50/80/90/95/100. Explicit scales keep their own limits and breaks.
 #' @param ... Arguments passed to the corresponding ggplot2 scale.
 #' @param values Manual aesthetic values.
 #' @return A ggplot2 scale.
@@ -24,7 +26,13 @@ scale_link_linewidth_manual <- function(..., values) ggplot2::scale_linewidth_ma
 scale_link_linetype_manual <- function(..., values) ggplot2::scale_linetype_manual(..., values = values, aesthetics = "link_linetype")
 #' @rdname scale_link
 #' @export
-scale_link_colour_gradientn <- function(...) ggplot2::scale_colour_gradientn(..., aesthetics = "link_colour")
+scale_link_colour_gradientn <- function(...) {
+  args <- list(...)
+  if (!"guide" %in% names(args)) {
+    args$guide <- ggplot2::guide_colourbar(available_aes = "link_colour")
+  }
+  do.call(ggplot2::scale_colour_gradientn, c(args, list(aesthetics = "link_colour")))
+}
 #' @rdname scale_link
 #' @export
 scale_link_color_gradientn <- scale_link_colour_gradientn
@@ -58,6 +66,11 @@ ggchord_add_link_scales <- function(plot) {
         link_alpha = scale_link_alpha_manual, link_linewidth = scale_link_linewidth_manual,
         link_linetype = scale_link_linetype_manual)
       scale <- fun(name = info$label, values = values, guide = guide)
+    }
+    if (identical(info$kind, "continuous") && all(info$labels == "pident")) {
+      scale$name <- "Identity (%)"
+      scale$limits <- c(0, 100)
+      scale$breaks <- c(0, 50, 80, 90, 95, 100)
     }
     scale$ggchord_managed <- TRUE
     plot$scales$add(scale)

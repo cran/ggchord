@@ -7,10 +7,8 @@ ggchord_perimeter_side <- function(x, y) {
   if (!is.finite(radius) || radius <= 1e-10) return("top")
   x <- x / radius
   y <- y / radius
-  if (y < -.75 && abs(x) < .7) return("bottom")
-  if (x > .215) return("right")
-  if (x < -.05) return("left")
-  if (y >= 0) "top" else "bottom"
+  if (abs(y) >= abs(x)) return(if(y >= 0) "top" else "bottom")
+  if (x < 0) "left" else "right"
 }
 
 ggchord_perimeter_tasks <- function(registry, units_per_inch) {
@@ -34,7 +32,19 @@ ggchord_perimeter_tasks <- function(registry, units_per_inch) {
           angle = 0, hjust = .5, vjust = .5,
           family = if ("family" %in% names(sites))
             as.character(sites$family[row]) else "",
-          fontface = "plain", lineheight = 1.2,
+          fontface = if ("fontface" %in% names(sites)) {
+            face <- sites$fontface[row]
+            if (length(face) != 1L || is.na(face) ||
+                (is.character(face) && !nzchar(face))) "plain" else
+              if (is.numeric(face)) c("plain", "bold", "italic", "bold.italic")[
+              max(1L, min(4L, as.integer(face)))] else as.character(face)
+          } else "plain",
+          lineheight = if ("lineheight" %in% names(sites))
+            as.numeric(sites$lineheight[row]) else 1.2,
+          .ggchord_composite_label = if (".ggchord_composite_label" %in% names(sites))
+            isTRUE(sites$.ggchord_composite_label[row]) else FALSE,
+          label_order = if ("label_order" %in% names(sites))
+            as.character(sites$label_order[row]) else "enzyme_position",
           enzyme_label = if ("enzyme_label" %in% names(sites))
             as.character(sites$enzyme_label[row]) else "",
           coordinate_label = if ("coordinate_label" %in% names(sites))
@@ -89,6 +99,7 @@ ggchord_perimeter_tasks <- function(registry, units_per_inch) {
         } else "plain",
         lineheight = if ("lineheight" %in% names(geometry))
           as.numeric(geometry$lineheight[row]) else 1.2,
+        .ggchord_composite_label = NA, label_order = "enzyme_position",
         enzyme_label = "", coordinate_label = "",
         enzyme_fontface = "plain",
         stringsAsFactors = FALSE
@@ -107,28 +118,36 @@ ggchord_perimeter_tasks <- function(registry, units_per_inch) {
   )
   tasks$w <- boxes$bw
   tasks$h <- boxes$bh
+  # Choose the compact origin fan only when the actual canvas can retain
+  # the full side words and a readable backbone. The ratio removes layout
+  # units, so this decision does not oscillate during physical refinement.
+  canvas <- ggchord_render_dimensions()
+  sides <- tasks$root_x >= 0
+  side_width <- vapply(c(FALSE, TRUE), function(side)
+    max(c(0, tasks$w[sides == side])), numeric(1L))
+  reserve_mm <- 1.1 * sum(side_width) / units_per_inch * 25.4
+  compact_fan <- all(is.finite(canvas)) &&
+    reserve_mm + .6 * canvas[2] <= canvas[1]
+  tasks$compact_fan <- compact_fan
+  wrap_mm <- if (all(is.finite(canvas)))
+    max(25, min(50, (canvas[1] - 70) / 2)) else 50
+  if (!compact_fan) tasks$enzyme_label <- mapply(
+    ggchord_wrap_physical_text, tasks$enzyme_label,
+    tasks$size, tasks$family, tasks$enzyme_fontface,
+    MoreArgs = list(width_mm = wrap_mm), USE.NAMES = FALSE)
   restriction <- which(tasks$kind == "restriction")
   if (length(restriction)) {
-    enzyme <- ggchord_restriction_text_metrics(
-      tasks$enzyme_label[restriction], tasks$size[restriction],
-      units_per_inch, parse = FALSE,
-      fontface = tasks$enzyme_fontface[restriction],
-      family = tasks$family[restriction],
-      lineheight = tasks$lineheight[restriction]
-    )
-    coordinate <- ggchord_restriction_text_metrics(
-      tasks$coordinate_label[restriction], tasks$size[restriction],
-      units_per_inch, parse = FALSE,
-      family = tasks$family[restriction],
-      lineheight = tasks$lineheight[restriction]
-    )
-    both <- nzchar(tasks$enzyme_label[restriction]) &
-      nzchar(tasks$coordinate_label[restriction])
-    tasks$w[restriction] <- enzyme$width + coordinate$width +
-      ifelse(both, .65 / 25.4 * units_per_inch, 0) +
-      .03 * units_per_inch
-    tasks$h[restriction] <- pmax(enzyme$height, coordinate$height) +
-      .03 * units_per_inch
+    tasks$text[restriction] <- vapply(restriction, function(i) {
+      parts <- c(tasks$enzyme_label[i], tasks$coordinate_label[i])
+      if (tasks$label_order[i] %in% "position_enzyme") parts <- rev(parts)
+      paste(parts[nzchar(parts)], collapse = " ")
+    }, character(1))
+    # Measure the same fragments on the target device as rendering and routing.
+    # Explicit uniform font faces retain their ordinary text-box path.
+    measured <- ggchord_text_boxes(tasks[restriction, , drop = FALSE],
+      units_per_inch = units_per_inch, box_padding = .015)
+    tasks$w[restriction] <- measured$bw
+    tasks$h[restriction] <- measured$bh
   }
   callout <- which(tasks$kind == "feature")
   if (length(callout)) {
@@ -150,23 +169,20 @@ ggchord_perimeter_tasks <- function(registry, units_per_inch) {
 }
 
 ggchord_perimeter_rail_crossings <- function(tasks, rows, edge_x, edge_y) {
-  if (length(rows) < 2L) return(0L)
+  n <- length(rows)
+  if (n < 2L) return(0L)
+  segments <- data.frame(x1 = tasks$route_x[rows], y1 = tasks$route_y[rows],
+    x2 = rep(edge_x, n), y2 = edge_y)
   crossings <- 0L
-  for (a in seq_len(length(rows) - 1L)) {
-    i <- rows[a]
-    first <- data.frame(x1 = tasks$route_x[i], y1 = tasks$route_y[i],
-      x2 = edge_x, y2 = edge_y[a])
-    for (b in seq.int(a + 1L, length(rows))) {
-      j <- rows[b]
-      if (abs(tasks$route_x[i] - tasks$route_x[j]) < 1e-8 &&
-          abs(tasks$route_y[i] - tasks$route_y[j]) < 1e-8) next
-      second <- data.frame(x1 = tasks$route_x[j], y1 = tasks$route_y[j],
-        x2 = edge_x, y2 = edge_y[b])
-      crossings <- crossings + as.integer(
-        ggchord_external_leader_crosses(first, second))
-    }
+  for (a in seq_len(n-1L)) {
+    at <- seq.int(a+1L, n)
+    at <- at[abs(segments$x1[at]-segments$x1[a]) >= 1e-8 |
+      abs(segments$y1[at]-segments$y1[a]) >= 1e-8]
+    if (length(at)) crossings <- crossings+sum(ggchord_route_segment_crossings(
+      c(segments$x1[a], segments$y1[a]), c(segments$x2[a], segments$y2[a]),
+      segments[at, , drop = FALSE]))
   }
-  crossings
+  as.integer(crossings)
 }
 
 ggchord_perimeter_line_hits_box <- function(line, box) {
@@ -457,6 +473,55 @@ ggchord_perimeter_top_fan <- function(tasks, rows, side_rows,
   best
 }
 
+# Partition the upper roots jointly. Each side is one contiguous angular run,
+# with a measured top run between them; classes never compete in separate queues.
+ggchord_assign_perimeter_sides <- function(tasks, canvas, units_per_inch) {
+  if (!all(is.finite(canvas))) return(tasks)
+  width_budget <- canvas[1]/25.4*units_per_inch*.82
+  height_budget <- canvas[2]/25.4*units_per_inch*.62
+  upper <- which(tasks$direction_y >= abs(tasks$direction_x))
+  if(length(upper)) {
+    angle <- atan2(tasks$direction_x, tasks$direction_y)
+    upper <- upper[order(angle[upper])]
+    m <- length(upper)
+    h <- c(0,cumsum(tasks$h[upper]))
+    w <- c(0,cumsum(tasks$pack_w[upper]))
+    fixed_left <- sum(tasks$h[tasks$side=="left" & !seq_len(nrow(tasks)) %in% upper])
+    fixed_right <- sum(tasks$h[tasks$side=="right" & !seq_len(nrow(tasks)) %in% upper])
+    best <- NULL; score <- Inf
+    for(i in 0:m) for(j in i:m) {
+      top_width <- w[j+1L]-w[i+1L]
+      if(top_width > width_budget) next
+      left_height <- fixed_left+h[i+1L]
+      right_height <- fixed_right+h[m+1L]-h[j+1L]
+      # First fit the physical columns, then keep the split near its natural
+      # meridian. Equal-height optimisation alone shifted all upper roots left.
+      centre <- if(j>i) mean(angle[upper[c(i+1L,j)]]) else
+        if(i==0) angle[upper[1L]] else angle[upper[i]]
+      pressure <- max(left_height,right_height)/max(height_budget,1e-8)
+      candidate <- 100*max(0,pressure-1) + abs(centre) +
+        .03*pressure + .01*top_width/max(width_budget,1e-8)
+      if(candidate < score) {score <- candidate;best <- c(i,j)}
+    }
+    if(!is.null(best)) {
+      i <- best[1];j <- best[2]
+      tasks$side[upper[seq_len(i)]] <- "left"
+      tasks$side[upper[i+seq_len(j-i)]] <- "top"
+      tasks$side[upper[j+seq_len(m-j)]] <- "right"
+    }
+  }
+  # The lower queue is usually sparse. Retain a contiguous central run and
+  # send only its measured width excess to the neighbouring lower sides.
+  members <- which(tasks$side=="bottom")
+  if(length(members) && sum(tasks$pack_w[members]) > width_budget) {
+    order <- order(abs(atan2(tasks$direction_x[members],-tasks$direction_y[members])))
+    retained <- members[order[cumsum(tasks$pack_w[members[order]]) <= width_budget]]
+    excess <- setdiff(members,retained)
+    tasks$side[excess] <- ifelse(tasks$direction_x[excess]<0,"left","right")
+  }
+  tasks
+}
+
 ggchord_place_dense_perimeter <- function(registry, layout,
                                           tasks = NULL,
                                           allow_top_fan = TRUE) {
@@ -477,6 +542,13 @@ ggchord_place_dense_perimeter <- function(registry, layout,
   route_radius <- max(backbone_outer + .055, root_radius, na.rm = TRUE)
   tasks$route_x <- tasks$direction_x * route_radius
   tasks$route_y <- tasks$direction_y * route_radius
+  canvas <- ggchord_render_dimensions()
+  compact_fan <- isTRUE(tasks$compact_fan[1L])
+  if (compact_fan) {
+    tasks$side <- ifelse(tasks$direction_y < -.75 & abs(tasks$direction_x) < .7,
+      "bottom", ifelse(tasks$direction_x > .215, "right",
+        ifelse(tasks$direction_x < -.05, "left",
+          ifelse(tasks$direction_y >= 0, "top", "bottom"))))
   if (allow_top_fan) {
     # A fixed side boundary can split one tightly spaced origin cluster and
     # make the side queue lift the upper fan. Group actual cuts first; feature
@@ -526,6 +598,11 @@ ggchord_place_dense_perimeter <- function(registry, layout,
     crowded_top <- sum(tasks$side == "top" &
       tasks$kind == "restriction") >= 8L
   }
+  } else {
+    tasks <- ggchord_assign_perimeter_sides(tasks, canvas, units_per_inch)
+    allow_top_fan <- FALSE
+    crowded_top <- FALSE
+  }
   top_rows <- which(tasks$side == "top")
   wide_top <- crowded_top && length(top_rows) &&
     max(tasks$w[top_rows]) > .8 * backbone_outer
@@ -546,7 +623,10 @@ ggchord_place_dense_perimeter <- function(registry, layout,
     # A shared departure circle makes this physical order unambiguous for
     # feature, primer and restriction leaders alike.
     axis <- ggchord_pack_ordered_axis(
-      tasks$route_y[rows], tasks$route_y[rows],
+      tasks$route_y[rows],
+      if (compact_fan) tasks$route_y[rows] else
+        atan2(tasks$direction_x[rows],tasks$direction_y[rows]) *
+          if(side=="left") 1 else -1,
       tasks$h[rows] / 2, tasks$h[rows] / 2, gap = gap
     )
     boundary <- max(backbone_outer + .12, route_radius + .07,
@@ -686,6 +766,9 @@ ggchord_place_dense_perimeter <- function(registry, layout,
     row <- task$row
     if (task$kind == "restriction") {
       sites <- registry[[id]]$restriction_site
+      if (!"label_text_original" %in% names(sites)) sites$label_text_original <- sites$label
+      sites$enzyme_label[row] <- task$enzyme_label
+      sites$label[row] <- task$text
       sites$x[row] <- task$target_x
       sites$y[row] <- task$target_y
       sites$label_attachment_x[row] <- task$edge_x
@@ -700,15 +783,21 @@ ggchord_place_dense_perimeter <- function(registry, layout,
       leaders <- which(sites$restriction_component %in% "leader" &
         sites$source_row == task$source)
       if (length(leaders) >= 2L) {
-        if (length(leaders) < 3L) {
+        direct <- ".leader_style" %in% names(sites) &&
+          identical(sites$.leader_style[row], "straight")
+        if (!direct && length(leaders) < 3L) {
           extra <- sites[tail(leaders, 1L), , drop = FALSE]
           sites <- rbind(sites, extra)
           leaders <- c(leaders, nrow(sites))
         }
         sites$x[leaders] <- task$edge_x
         sites$y[leaders] <- task$edge_y
-        sites$x[leaders[1:2]] <- c(task$root_x, task$route_x)
-        sites$y[leaders[1:2]] <- c(task$root_y, task$route_y)
+        sites$x[leaders[1L]] <- task$root_x
+        sites$y[leaders[1L]] <- task$root_y
+        if (!direct) {
+          sites$x[leaders[2L]] <- task$route_x
+          sites$y[leaders[2L]] <- task$route_y
+        }
       }
       registry[[id]]$restriction_site <- sites
     } else {
@@ -759,4 +848,19 @@ ggchord_place_dense_perimeter <- function(registry, layout,
     }
   }
   ggchord_measure_external_leader_crossings(registry)
+}
+
+# Word wrapping uses the same grid font metrics as rendering, not character count.
+ggchord_wrap_physical_text <- function(text,size,family,fontface,width_mm) {
+  if (is.na(text) || !nzchar(text)) return(text)
+  measure <- function(value) grid::convertWidth(grid::grobWidth(grid::textGrob(value,
+    gp=grid::gpar(fontsize=size*72.27/25.4,fontfamily=family,fontface=fontface))),"mm",TRUE)
+  if (measure(text) <= width_mm) return(text)
+  words <- strsplit(text,"[[:space:]]+")[[1]]
+  lines <- character(); line <- ""
+  for (word in words) {
+    trial <- trimws(paste(line,word))
+    if (nzchar(line) && measure(trial)>width_mm) {lines<-c(lines,line);line<-word} else line<-trial
+  }
+  paste(c(lines,line),collapse="\n")
 }

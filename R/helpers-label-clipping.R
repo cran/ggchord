@@ -23,7 +23,7 @@ ggchord_clip_segments_to_labels <- function(segments, gl,
   }
   curved <- if ("feature_label_mode" %in% names(gl)) {
     gl$feature_label_mode %in% c("inside", "adjacent") &
-      !grepl("\n", gl$text, fixed = TRUE) & !is.na(gl$text) & nzchar(gl$text)
+      !is.na(gl$text) & nzchar(gl$text)
   } else rep(FALSE, nrow(gl))
   box_parts <- list()
   box_owner <- integer()
@@ -206,57 +206,59 @@ ggchord_repel_points <- function(seq_arcs, gene_polys, axis_lines, axis_ticks,
 #' always kept.
 #' @noRd
 ggchord_hide_text_overlaps <- function(df, content_pts,
-                                       units_per_inch = 0.35) {
+                                       units_per_inch = 0.35, circular = FALSE) {
   idx <- which(!is.na(df$label))
-  if (length(idx) < 1) return(df)
-  # keep the axis start/end labels of every sequence visible
-  protect <- logical(length(idx))
-  if ("accver" %in% names(df) && length(idx) > 1) {
-    for (sid in unique(df$accver[idx])) {
-      rows <- idx[df$accver[idx] == sid]
-      if (length(rows) > 1) {
-        protect[match(min(rows), idx)] <- TRUE
-        protect[match(max(rows), idx)] <- TRUE
-      } else if (length(rows) == 1) {
-        protect[match(rows, idx)] <- TRUE
+  if (!length(idx)) return(df)
+  labels <- df[idx, , drop = FALSE]
+  labels$.axis_label_index <- seq_along(idx)
+  labels <- ggchord_axis_label_geometry(list(circular=circular,
+    text_units_per_inch=units_per_inch), labels)
+  boxes <- ggchord_text_boxes(labels,
+    x_col = "label_x", y_col = "label_y", text_col = "label",
+    angle_col = "label_angle", hjust_col = "label_hjust",
+    vjust_col = "label_vjust", units_per_inch = units_per_inch, box_padding = .025)
+  owner <- labels$.axis_label_index
+  hits_content <- vapply(seq_along(idx), function(k) {
+    any(vapply(which(owner == k), function(j) {
+      dx <- content_pts$x - boxes$cx[j]
+      dy <- content_pts$y - boxes$cy[j]
+      cosine <- cos(boxes$angle[j]); sine <- sin(boxes$angle[j])
+      any(abs(dx * cosine + dy * sine) < boxes$ow[j] / 2 &
+        abs(-dx * sine + dy * cosine) < boxes$oh[j] / 2)
+    }, logical(1L)))
+  }, logical(1L))
+  groups <- split(seq_along(idx), df$accver[idx] %||% rep("", length(idx)))
+  hits_content[vapply(groups, `[[`, integer(1L), 1L)] <- FALSE
+  kept <- integer()
+  for (rows in groups) {
+    previous_count <- length(kept)
+    # Scientific endpoints take precedence over nearby rounded intermediate
+    # ticks. Preserve the ordinary overlap policy if both cannot physically fit.
+    endpoints <- if ("is_endpoint" %in% names(df))
+      rows[df$is_endpoint[idx[rows]] %in% TRUE] else integer()
+    priority <- integer()
+    for (k in endpoints) {
+      if (!ggchord_boxes_overlap_any(boxes[owner == k, , drop = FALSE],
+          boxes[owner %in% c(kept, priority), , drop = FALSE])) {
+        priority <- c(priority, k)
       }
     }
-  }
-  if (nrow(content_pts) == 0) {
-    content_pts <- data.frame(x = numeric(0), y = numeric(0))
-  }
-  close_device <- ggchord_measurement_device(text = df$label[idx])
-  on.exit(close_device())
-  sizes <- df$size[idx] %||% rep(3, length(idx))
-  w <- suppressWarnings(graphics::strwidth(df$label[idx], units = "inches",
-                                           cex = sizes / 12)) * units_per_inch
-  h <- suppressWarnings(graphics::strheight(df$label[idx], units = "inches",
-                                            cex = sizes / 12)) * units_per_inch
-
-  hide <- logical(length(idx))
-  for (k in seq_along(idx)) {
-    i <- idx[k]
-    x <- df$label_x[i]
-    y <- df$label_y[i]
-    # overlap with content points: label center too close to an element
-    if (nrow(content_pts) > 0) {
-      d <- sqrt((x - content_pts$x)^2 + (y - content_pts$y)^2)
-      if (any(d < min(w[k], h[k]) * 0.5 + 0.05)) hide[k] <- TRUE
-    }
-    if (!hide[k]) {
-      # overlap with another label's box
-      for (k2 in seq_along(idx)) {
-        if (k2 == k) next
-        j <- idx[k2]
-        if (abs(x - df$label_x[j]) < (w[k] + w[k2]) / 2 &&
-            abs(y - df$label_y[j]) < (h[k] + h[k2]) / 2) {
-          hide[k] <- TRUE
-          break
-        }
+    hits_content[priority] <- FALSE
+    for (stride in seq_along(rows)) {
+      candidates <- unique(c(priority, rows[seq.int(1L, length(rows), by = stride)]))
+      trial <- kept
+      for (k in candidates[!hits_content[candidates]]) {
+        if (ggchord_boxes_overlap_any(boxes[owner == k, , drop = FALSE],
+                                     boxes[owner %in% trial, , drop = FALSE])) break
+        trial <- c(trial, k)
+      }
+      if (length(trial) - length(kept) == sum(!hits_content[candidates])) {
+        kept <- trial
+        break
       }
     }
+    if (length(kept) == previous_count) kept <- c(kept, priority)
   }
-  hide <- hide & !protect
-  df$label[idx[hide]] <- NA
+  df$label[idx[setdiff(seq_along(idx), kept)]] <- NA_character_
   df
 }

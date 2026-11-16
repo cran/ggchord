@@ -22,6 +22,11 @@ geom_link_ribbon(
   position = "identity",
   show.legend = TRUE,
   inherit.aes = FALSE,
+  nonadjacent_linewidth = 0.4,
+  between = NULL,
+  allow_repeated = FALSE,
+  tip = c("none", "subject"),
+  gradient = FALSE,
   ...
 )
 }
@@ -34,7 +39,11 @@ geom_link_ribbon(
 Two numbers specify one shared control; four numbers specify controls for
 the two ribbon edges. A per-row list may contain pairs of coordinate vectors.
 NULL uses the origin \code{c(0, 0)} in chord layouts and derives controls
-from the sequence endpoints in collinear layouts. With shared branches,
+from the sequence endpoints in collinear layouts. In Radial layouts NULL
+uses annular curves; explicit controls use final Cartesian layout units,
+one point for each edge. Use a separate layer to adjust nonadjacent links
+without changing adjacent curves. This controls the middle of the path;
+\code{link_gap} only controls clearance at the sequence endpoints. With shared branches,
 controls shape the far ends while the junction follows the shared trunk.}
 
 \item{link_gap}{Optional numeric/vector controlling spacing between
@@ -55,17 +64,20 @@ avoidance uses one clearance across an endpoint.}
 
 \item{link_branch_fraction}{Shared length relative to the shortest member, in (0, 0.5].}
 
-\item{fill}{Optional fixed ribbon fill. \code{NULL} keeps the default Identity
-mapping.}
+\item{fill}{Optional fixed ribbon fill. NULL uses the default Identity fill.}
 
 \item{alpha, colour, linewidth}{Standard fixed ribbon styles. Explicit values
 take precedence over matching mappings; omitted defaults do not suppress
 user mappings. For example, omit \code{alpha} when mapping \code{ribbon_alpha}.}
 
 \item{linetype}{Fixed outline line type. The default \code{NULL} uses solid
-outlines for adjacent displayed sequences and dashed outlines for
-non-adjacent sequences. Chord adjacency includes the first/last pair.
-This follows the final display order, independently of alignment direction.
+outlines in Chord and Sankey views. \code{\link[=coord_collinear]{coord_collinear()}}
+uses dashed outlines for non-adjacent displayed rows, with widths set by
+\code{nonadjacent_linewidth}; adjacent rows stay solid. This row convention
+follows final display order, independently of alignment direction.
+\code{\link[=coord_radial_synteny]{coord_radial_synteny()}} also uses dashed nonadjacent outlines, with
+adjacency defined cyclically (including first/last); \code{nonadjacent_linewidth}
+uses the same width convention as Collinear.
 Explicit fixed styles or \code{aes(ribbon_linetype = ...)} (also
 \code{aes(linetype = ...)}) replace the automatic styles. Use a matching scale
 for data mappings; automatic styles do not train a linetype scale.
@@ -83,26 +95,48 @@ by \code{\link[=export_ggchord_layout]{export_ggchord_layout()}}.}
 
 \item{position, show.legend, inherit.aes}{Standard ggplot2 layer arguments.}
 
+\item{nonadjacent_linewidth}{Fixed outline width for non-adjacent displayed
+rows in \code{\link[=coord_collinear]{coord_collinear()}} or nonadjacent spokes in
+\code{\link[=coord_radial_synteny]{coord_radial_synteny()}}, default 0.4 mm. These ribbons use dashed
+outlines by default. Zero uses the layer's ordinary \code{linewidth} for every
+ribbon. This changes width independently of line type. An explicit
+\code{aes(linewidth = ...)} controls widths instead of this fixed default.}
+
+\item{between}{Two display-instance names or declared-order indices for a unique route.}
+
+\item{allow_repeated}{Explicitly allow a declared source_hsp_id in more than one displayed relation.}
+
+\item{tip}{Full interval fronts (none, default), or an optional subject taper.
+The shoulder retains the translated target endpoint span at 88 percent
+of the channel. The tip is a decorative front-midpoint marker, not a
+single matched base or biological transfer direction. Degenerate fronts
+fall back to the full front with a warning. Source intervals are unchanged.}
+
+\item{gradient}{Logical. Opt into endpoint sequence-colour interpolation;
+default FALSE. Explicit fill, mapping and scales still take priority.}
+
 \item{...}{Additional arguments passed to \code{geom_polygon()}}
 }
 \value{
 A ggplot2 layer.
 }
 \description{
-Draws alignment ribbons. Identity is mapped to \code{ribbon_fill} by default;
-When pident is absent, the default is a fixed grey fill with no Identity
-guide. Alignment length and identity are never inferred from endpoints.
+Draws alignment ribbons with Identity fills by default.
+Set gradient = TRUE for query-to-subject sequence-colour interpolation. Explicit fill, ribbon_fill mappings or ribbon fill scales
+replace the gradient; map ribbon_fill = pident for an Identity guide. Alignment length and identity are never inferred from endpoints.
 Alternative mappings and legends are controlled with \code{aes()}, \verb{scale_*()}
-and \code{guides()}.
+and \code{guides()}. With gradient enabled, shared trunks keep the common
+endpoint colour and branches interpolate between their endpoint colours. Optional tips appear
+only at real subject fronts.
 }
 \examples{
 library(dplyr)
-data(seq_data_example)
-seqs <- seq_data_example |>
-  select(accver, length)
-data(ribbon_data_example)
 links <- ribbon_data_example |>
+  slice_head(n = 1) |>
   select(qaccver, saccver, qstart, qend, sstart, send)
+seqs <- seq_data_example |>
+  filter(accver \%in\% c(links$qaccver, links$saccver)) |>
+  select(accver, length)
 ggchord(seq_data = seqs, ribbon_data = links) +
   geom_seq() +
   geom_link_ribbon()

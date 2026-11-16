@@ -137,6 +137,8 @@ ggchord_layout_label_step <- function(
       label_directions <- layout_result$directions
       draw_segment <- layout_result$draw_segment
       gene_labels$label_layout <- gene_label_layout
+      gene_labels$.leader_overlap <- gene_label_segment_overlap
+      gene_labels$.leader_overlap_alpha <- gene_label_segment_overlap_alpha
       gene_labels$label_track <- layout_result$tracks
       final_obstacles <- ggchord_text_obstacle_boxes(
         seq_labels_df, axis_ticks, show_axis,
@@ -181,6 +183,13 @@ ggchord_layout_label_step <- function(
           group = rows,
           stringsAsFactors = FALSE
         )
+        inner_routes <- layout_result$leader_segments
+        if (is.data.frame(inner_routes) && nrow(inner_routes)) inner_routes <-
+          inner_routes[draw_segment[inner_routes$group], , drop = FALSE]
+        if (is.data.frame(inner_routes) && nrow(inner_routes)) gene_label_segments <- rbind(
+          gene_label_segments[!gene_label_segments$group %in% inner_routes$group, , drop = FALSE],
+          inner_routes)
+
       } else {
         gene_label_segments <- ggchord_repel_segments(
           gene_labels, min_segment_length = layout_min_segment
@@ -263,18 +272,17 @@ ggchord_layout_label_step <- function(
         repel_boxes = fixed_obstacles
       )
     }
-    # Drop hidden labels and remap segment group IDs so every segment keeps a
-    # valid reference after max_overlaps removes an interior label row.
+    # Segment builders use row indices. Resolve these to stable label group
+    # IDs before hidden/shared children are removed; source ownership survives.
     gene_labels <- ggchord_label_fit_metadata(gene_labels)
     label_fit_diagnostics <- gene_labels[intersect(c("source_row", "accver",
       "label_text_original", "label_size_requested", "label_size_final",
       "label_size_min", "label_fit_reason", "feature_label_mode"), names(gene_labels))]
     visible_labels <- !is.na(gene_labels$text) & nzchar(gene_labels$text)
     if (nrow(gene_label_segments) > 0) {
-      group_map <- match(seq_len(nrow(gene_labels)), which(visible_labels))
-      keep_segments <- !is.na(group_map[gene_label_segments$group])
+      keep_segments <- visible_labels[gene_label_segments$group]
       gene_label_segments <- gene_label_segments[keep_segments, , drop = FALSE]
-      gene_label_segments$group <- group_map[gene_label_segments$group]
+      gene_label_segments$group <- gene_labels$group[gene_label_segments$group]
     }
     gene_labels <- gene_labels[visible_labels, , drop = FALSE]
   }

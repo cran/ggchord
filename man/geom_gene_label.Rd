@@ -24,7 +24,8 @@ geom_gene_label(
 \arguments{
 \item{mapping}{Default NULL (uses pre-computed data)}
 
-\item{data}{Default NULL (retrieved automatically from the layout)}
+\item{data}{Optional layer table or function. Default data follows the
+gene/CDS selection described in \code{\link[=ggchord]{ggchord()}}.}
 
 \item{label_orientation}{Character, default \code{"horizontal"}. Text
 orientation relative to each sequence path: \code{"radial"},
@@ -36,7 +37,7 @@ outside the chord, use the strand-based \code{"auto"} side, or force
 
 \item{label_overlap}{Character, default \code{"hide"}. Fixed-label
 collision policy: omit later conflicting labels (\code{"hide"}), apply
-the legacy gentle adjustment (\code{"nudge"}), or keep all requested
+the small position adjustment (\code{"nudge"}), or keep all requested
 positions (\code{"allow"}). Input row order therefore provides a simple
 way to prioritize labels in \code{"hide"} mode.}
 
@@ -81,7 +82,7 @@ to annotate the gene arrows with their texts.
 This is the deterministic, fixed-position label layer. By default labels
 sit outside their sequence and labels that would collide are omitted in
 input-row order. Use \code{label_overlap = "nudge"} to retain the
-legacy gentle adjustment, or \code{"allow"} to draw every label at its
+small position adjustment, or \code{"allow"} to draw every label at its
 requested position. For automatic arrangement with leader lines, use
 \code{\link{geom_gene_label_repel}()} instead.
 }
@@ -92,6 +93,7 @@ seqs <- seq_data_example |>
   select(accver, length)
 data(gene_data_example)
 genes <- gene_data_example |>
+  slice_head(n = 3) |>
   transmute(accver, start, end, strand = source_strand, anno)
 ggchord(seq_data = seqs, gene_data = genes) +
   geom_seq() +

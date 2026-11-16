@@ -2,27 +2,42 @@
 % Please edit documentation in R/collinear-utils.R
 \name{map_ggchord_position}
 \alias{map_ggchord_position}
-\title{Convert genomic positions to or from a linear ggchord layout}
+\title{Map native sequence positions and display coordinates}
 \usage{
-map_ggchord_position(plot, accver, position, inverse = FALSE, source = FALSE)
+map_ggchord_position(
+  plot,
+  accver,
+  position,
+  inverse = FALSE,
+  source = FALSE,
+  axis = NULL
+)
 }
 \arguments{
-\item{plot}{A ggchord plot using \code{\link[=coord_collinear]{coord_collinear()}}.}
+\item{plot}{A ggchord plot using \code{\link[=coord_collinear]{coord_collinear()}}, \code{\link[=coord_radial_synteny]{coord_radial_synteny()}}
+or \code{\link[=coord_dotplot]{coord_dotplot()}}.}
 
 \item{accver}{Sequence identifiers, scalar or one per position.}
 
-\item{position}{Numeric genomic positions, or layout x when \code{inverse = TRUE}.}
+\item{position}{Numeric genomic positions, or layout x when \code{inverse = TRUE}.
+Radial inverse mapping instead requires a matrix/data frame with \code{x} and
+\code{y} columns on the specified backbone. Off-backbone positions are rejected.}
 
-\item{inverse}{Convert layout x back to bp.}
+\item{inverse}{Convert layout x back to native sequence positions.}
 
 \item{source}{Use original source coordinates after focusing.}
+
+\item{axis}{Dotplot axis to map, either \code{"x"} (query) or \code{"y"} (subject).
+Required for Dotplots; omitted for linear and radial layouts. Dotplot gaps return NA
+on inverse mapping, with the chosen axis recorded in the result.}
 }
 \value{
-A data frame with accver, position, x and backbone y.
+A data frame with accver, position, x, y and sequence_unit. Dotplots
+also record the selected axis; the other display coordinate is NA.
 }
 \description{
 Maps positions for ordinary ggplot2 annotation layers without modifying
-source tables. Inverse mapping returns the chosen relative or source bp.
+source tables. Inverse mapping returns the chosen relative or source sequence positions.
 In a segmented layout, specify the window accession rather than its parent
 source accession. Positions outside that window, including display gaps,
 produce an error instead of being extrapolated into omitted sequence.

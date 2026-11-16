@@ -2,7 +2,7 @@
 ggchord_layout_axis_step <- function(
     axis_breaks, axis_labels, axis_minor_breaks, axisGap, axisLabelOrientation, axisMaj, axisMajLen,
     axisMin, axisMinLen, circular, ends, labelOffset, labelSize, lens, nSeg, orientation, seq_refs,
-    seqBackboneOuter, seqs, show_axis, starts) {
+    seqBackboneOuter, seqs, show_axis, starts, axis_text_style) {
   # Step 5: generate axes (lines, ticks, labels)
   # ====================================================================
   axis_lines <- data.frame(x = numeric(0), y = numeric(0),
@@ -20,12 +20,19 @@ ggchord_layout_axis_step <- function(
                            stringsAsFactors = FALSE)
 
   if (show_axis) {
-    # Axis lines
-    axis_lines <- do.call(rbind, lapply(seqs, function(id) {
+    # Circular backbones supply the baseline at zero gap. Explicit gaps move
+    # the axis to one side of the whole backbone, with ticks on that same side.
+    axis_radius <- function(id) {
       ref <- seq_refs[[id]]
-      r0 <- ref$r0 - axisGap[id]
+      if (!isTRUE(circular)) return(ref$r0 - axisGap[id])
+      side <- if (axisGap[id] > 0) 1 else -1
+      ref$r0 - side * seqBackboneOuter - axisGap[id]
+    }
+    axis_lines <- do.call(rbind, lapply(seqs, function(id) {
+      if (isTRUE(circular) && axisGap[id] == 0) return(axis_lines)
+      ref <- seq_refs[[id]]
       angles <- seq(starts[id], ends[id], length.out = nSeg)
-      pts <- map_to_curve_many(angles, r0, ref)
+      pts <- map_to_curve_many(angles, axis_radius(id), ref)
       data.frame(x = pts[, 1], y = pts[, 2], accver = id, stringsAsFactors = FALSE)
     }))
 
@@ -34,18 +41,27 @@ ggchord_layout_axis_step <- function(
       ref <- seq_refs[[id]]
       r0 <- ref$r0 - axisGap[id]
 
-      majors <- axis_breaks[[id]] %||% breakPointsFunc(lens[id], axisMaj[id])
+      path <- ref$path
+      curve_length <- sum(sqrt(diff(path$x)^2 + diff(path$y)^2))
+      metric <- ggchord_render_context()$units_per_mm
+      available <- if (!is.null(metric) && all(is.finite(metric))) curve_length/max(metric) else NULL
+      majors <- axis_breaks[[id]] %||% breakPointsFunc(lens[id], axisMaj[id], available_mm=available)
       major_labels <- axis_labels[[id]]
-      if (isTRUE(circular) && any(abs(majors) < sqrt(.Machine$double.eps))) {
-        # Zero and sequence length are the same circular seam. Keep only the
-        # zero-side tick even when a default ggplot2 scale supplied both.
-        keep_major <- abs(majors - lens[id]) >= sqrt(.Machine$double.eps)
-        majors <- majors[keep_major]
-        if (!is.null(major_labels)) major_labels <- major_labels[keep_major]
+      seam_position <- numeric()
+      automatic_breaks <- is.null(axis_breaks[[id]]) ||
+        isTRUE(attr(axis_breaks[[id]], 'ggchord_automatic_breaks'))
+      if (isTRUE(circular) && abs(abs(ends[id]-starts[id])-2*pi)<1e-7 &&
+          automatic_breaks && lens[id] > 1 && all(c(1,lens[id]) %in% majors)) {
+        # One seam cue names both actual ends without stacking two labels.
+        major_labels <- as.character(major_labels %||% majors)
+        major_labels[majors == 1] <- paste0(major_labels[majors==1]," / ",major_labels[majors==lens[id]])
+        keep <- majors != lens[id]
+        majors <- majors[keep]; major_labels <- major_labels[keep]
+        seam_position <- 1
       }
       minors <- axis_minor_breaks[[id]]
       if (is.null(minors)) {
-        minors <- unlist(lapply(seq_len(length(majors) - 1), function(i) {
+        minors <- unlist(lapply(seq_len(max(0L, length(majors) - 1L)), function(i) {
           seq(majors[i], majors[i + 1], length.out = axisMin[id] + 2)[-c(1, axisMin[id] + 2)]
         }))
       }
@@ -112,21 +128,13 @@ ggchord_layout_axis_step <- function(
       len <- ifelse(pts$is_major, axisMajLen[id], axisMinLen[id])
       len[origin_tick] <- len[origin_tick] * 2.2
       if (isTRUE(circular)) {
-        # Circular tick marks begin at the visible inner edge of the backbone
-        # and extend towards the centre. Restriction-site leaders use the outer
-        # edge instead; these are deliberately separate attachment contracts.
-        # The curve mapper's radius parameter follows its left normal; for the
-        # circular reference this means subtracting a signed outward offset.
-        at_offset <- function(offset) map_to_curve_many(
-          angle, ref$r0 - offset, ref
+        side <- if (axisGap[id] > 0) 1 else -1
+        r_axis <- axis_radius(id)
+        base <- map_to_curve_many(angle, r_axis, ref)
+        tip <- map_to_curve_many(angle, r_axis - side * len, ref)
+        lbl <- map_to_curve_many(
+          angle, r_axis - side * (len + labelOffset[id]), ref
         )
-        base <- at_offset(-seqBackboneOuter)
-        tip <- at_offset(-seqBackboneOuter - len)
-        # Parallel text is attached beside the radial tick in the transform
-        # step, after its final readable tangent direction is known. Other
-        # orientations retain the historical radial offset.
-        lbl <- if (along_axis) tip else
-          at_offset(-seqBackboneOuter - len - labelOffset[id])
       } else {
         base <- map_to_curve_many(angle, r0, ref)
         tip <- map_to_curve_many(angle, r0 + len * dir, ref)
@@ -141,12 +149,20 @@ ggchord_layout_axis_step <- function(
         label = pts$display_label,
         label_x = lbl[, 1], label_y = lbl[, 2],
         size = labelSize[[id]],
+        family = axis_text_style$family %||% "",
+        fontface = axis_text_style$fontface %||% "plain",
+        lineheight = axis_text_style$lineheight %||% 1.2,
         label_angle = label_angle,
         label_angle_relative = relative_angle,
         label_along_axis = rep(along_axis, nrow(pts)),
         label_gap = rep(labelOffset[id], nrow(pts)),
+        .axis_seam_combined = pts$pos %in% seam_position,
+        .axis_automatic_breaks = automatic_breaks,
+        .axis_offset_explicit = isTRUE(axis_text_style$offset_explicit),
+        .axis_allow_clearance = isTRUE(axis_text_style$allow_clearance),
         is_major = pts$is_major,
         is_origin = origin_tick,
+        is_endpoint = pts$is_major & pts$pos %in% c(1, lens[id]),
         accver = id,
         stringsAsFactors = FALSE
       )

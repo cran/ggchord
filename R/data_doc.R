@@ -69,7 +69,7 @@ NULL
 #'
 #' @format A one-row data frame with `accver`, display `label`, `length`, and
 #'   the DNA `sequence`.
-#' The historical `plasmid_example_pUC19c` spelling is a compatibility alias
+#' The `plasmid_example_pUC19c` name is an alias
 #' of `plasmid_example_pUC19`, including its `accver`. It must not be confused
 #' with an independently imported GenBank pUC19c record such as L09137.2.
 #'
@@ -127,4 +127,146 @@ NULL
 
 #' @rdname plasmid_example_pUC19
 #' @name plasmid_example_pTRIPZ
+NULL
+
+
+#' Four complete protein sequences for comparison
+#'
+#' Three EMALE proteins and one Mavirus protein selected from public complete
+#' FASTA records. Their six pairwise comparisons are in
+#' [protein_ribbon_data_example]. Lengths describe complete proteins.
+#'
+#' @format A data frame with four rows and columns:
+#' \describe{
+#'   \item{accver}{Unchanged protein identifier.}
+#'   \item{length}{Full length in amino acids.}
+#'   \item{sequence_unit}{The declared coordinate unit, `"aa"`.}
+#'   \item{sequence}{Complete protein residues retained from the source FASTA.}
+#' }
+#' @source Public EMALE/Mavirus FASTA records. Selection, source hashes,
+#'   BLASTp version and arguments are in `examples/protein/sources.json`.
+#'   Rebuild with `data-raw/prepare-bundled-proteins.py` and
+#'   `data-raw/generate_protein_data.R`.
+#' @seealso [protein_ribbon_data_example], [ggchord]
+"protein_seq_data_example"
+
+#' Six pairwise BLASTp alignments between the example proteins
+#'
+#' Observed BLASTp alignments between every unordered pair of the four
+#' complete proteins in [protein_seq_data_example]. The raw all-against-all
+#' output retains self hits and both query/subject directions. This teaching
+#' table retains one direction per pair, ordered by the sequence table.
+#'
+#' @format A data frame with six rows containing the twelve standard BLAST
+#'   fields, physical `.source_line` provenance and `sequence_unit = "aa"`.
+#'   Endpoints are one-based inclusive amino-acid positions.
+#' @source `examples/protein/all-vs-all-blastp.tsv`, generated with NCBI
+#'   BLASTp 2.17.0+ from unchanged complete protein records. The command,
+#'   source hashes and sequence selection are recorded in
+#'   `examples/protein/sources.json`.
+#' @seealso [protein_seq_data_example], [geom_link_ribbon]
+"protein_ribbon_data_example"
+
+#' Complete genome comparison inputs and flagship display subsets
+#'
+#' Unchanged sequence, GFF3 and BLAST records for four genomes, together with
+#' the explicit subsets used by the website flagships. Rebuild with
+#' `data-raw/generate_website_data.R`; source checksums are recorded in
+#' `data-raw/website-data-sources.tsv`. No intervals or strands are invented.
+#' Full source tables remain separate from the display selections.
+#'
+#' @format A named list: `sequences` includes complete DNA strings; `seq_data`
+#'   contains accession and length; `annotations`, `alignments` and
+#'   `source_alignments` retain complete imported records (the latter adds
+#'   source-file and HSP identifiers). `genes` contains all CDS. `links`,
+#'   `features`, `chord_features`, `linear_features`, `adjacent_links` and
+#'   `cross_links` are the existing deterministic display selections, in their
+#'   original order. Coordinates are one-based inclusive, lengths are in bp,
+#'   and pident is a percentage. Displayed negative subject endpoints may be
+#'   descending. Import provenance is retained on the imported tables.
+#' @source Repository `examples/fasta/`, `examples/gff3/` and
+#'   `examples/blastn-standard/`; their source documentation accompanies the
+#'   original files. The generator records the exact filtering rules.
+#' @examples
+#' data(genome_comparison_example)
+#' head(genome_comparison_example$seq_data)
+"genome_comparison_example"
+
+#' Source-backed alignment and coding sequence teaching inputs
+#'
+#' Prepared inputs for sequence-detail, Dotplot and Fusion examples. File
+#' readers are demonstrated separately; these tables require no checkout or
+#' working-directory configuration. Rebuild with
+#' `data-raw/generate_website_data.R`.
+#'
+#' @format A named list: `plasmid_source` retains the complete pUC19 input;
+#'   `paf` is the complete 11-HSP EMALE pair; `dna_alignment`
+#'   and `protein_alignment` are long-form observed alignment cells;
+#'   `aligned_strings` contains the original gapped DNA strings;
+#'   `coding_genome`, `coding_features` and `coding_proteins` retain the genomic,
+#'   annotation and protein inputs for the CDS translation example.
+#'   `protein_hits` and `source_coding_features` retain the full protein
+#'   projection inputs with source-file provenance. DNA
+#'   coordinates are in bp, protein coordinates in residues. No alignment gaps
+#'   or coding relationships are inferred to improve a plot.
+#' @source Repository `examples/alignment/` and `examples/format-inputs/`,
+#'   with upstream provenance in their README files and checksums in
+#'   `data-raw/website-data-sources.tsv`.
+#' @examples
+#' data(sequence_detail_example)
+#' head(sequence_detail_example$paf)
+"sequence_detail_example"
+
+#' Ready-to-plot flagship inputs
+#'
+#' Prepared data for every website flagship. These objects separate source
+#' construction from drawing: no file reading, feature discovery, selection,
+#' focusing or base extraction is needed on the plotting pages. Original
+#' genome source tables remain available in [genome_comparison_example].
+#'
+#' @name flagship_examples
+#' @aliases flagship_comparison_example flagship_dotplot_example flagship_fusion_example flagship_circular_example
+#' @docType data
+#' @format Four named lists:
+#' \describe{
+#'   \item{flagship_comparison_example}{Entries `chord`, `collinear`, `radial`
+#'     and `sankey`, each containing `seq_data`, selected links, `features`
+#'     and ordered `labels`. Chord/Radial also contain display `orientation`;
+#'     Collinear/Sankey separate `adjacent_links` and `cross_links`.
+#'     Collinear `route_controls` apply to the unchanged fixed flagship layout.
+#'     The additional `comparison` entry retains the original four-coordinate
+#'     teaching inputs as `seq_data`, `links`, `features` and `events`.}
+#'   \item{flagship_dotplot_example}{Complete `seq_data` and `links`, the
+#'     `pair_counts`, and ready `cell_labels` for all 16 sequence combinations.
+#'     Label coordinates use the declared `axis_gap` of 4000 bp.}
+#'   \item{flagship_fusion_example}{Selected overview `links`, `features` and
+#'     display `orientation`; complete `all_features`; three labelled relation
+#'     tables; source `windows`, `focused` local tables, `detail_features`,
+#'     `context_sequences` and `context_features`; `base_cds`, `base_start`,
+#'     `base_end`, registered-input `base_cells`, and `focus_regions`.
+#'     Source and local coordinates are retained separately.}
+#'   \item{flagship_circular_example}{`dense` contains the existing dense
+#'     flagship's sequence, feature, primer and restriction tables. `references`
+#'     contains 13 complete maps named by original sequence identifier, with
+#'     `seq_data`, `source_sequence`, `features`, `primers`, `sites`, `all_site_count`,
+#'     `policy` and the separate legacy `gallery_sites`. `summary` records
+#'     sequence lengths and feature counts.}
+#' }
+#' @details
+#' Nucleotide coordinates are one-based inclusive and measured in bp; pident
+#' is a percentage. Biological strands and descending reverse-HSP endpoints
+#' are unchanged. Display orientation, route controls and cell-label positions
+#' are explicit presets, not biological observations. Rebuild the applicable
+#' presets when changing sequence order, gap or alignment geometry.
+#'
+#' No compiled plot, grob, device measurement or final label placement is stored.
+#' Drawing still performs physical-size geometry and label layout. Complete
+#' source records and the actual selected display rows are kept separately.
+#' @source `data-raw/generate_flagship_data.R`, after
+#'   `data-raw/generate_website_data.R`. Input fingerprints are recorded in
+#'   `data-raw/flagship-data-sources.tsv` and `data-raw/website-data-sources.tsv`.
+#'   Original FASTA/GFF3/BLAST files and reference plasmid records are unchanged.
+#' @examples
+#' data(flagship_comparison_example)
+#' names(flagship_comparison_example$chord)
 NULL

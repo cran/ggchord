@@ -32,37 +32,88 @@ ggchord_diagnostic_guides <- function(table, canvas_mm) {
     width_mm = numeric(), height_mm = numeric(), canvas_area_fraction = numeric(), exceeds_canvas = logical())
 }
 
-ggchord_diagnostic_text <- function(data, coordinate, panel, context, parse = FALSE) {
+ggchord_diagnostic_text_styles <- function(data, layer) {
+  # Identity layers retain render-order sidecars that are not aesthetics.
+  # In particular axis arc glyphs draw as component='text'; losing their
+  # parent identity turns intentional contacts within one string into clashes.
+  original <- layer$data
+  if (is.data.frame(original) && nrow(original) == nrow(data) &&
+      inherits(layer$stat, 'StatIdentity') && inherits(layer$position, 'PositionIdentity')) for (field in setdiff(intersect(
+        c('.arc_parent_group', '.arc_glyph_index', '.axis_label', 'source_row',
+          'accver', 'display_instance_id'), names(original)), names(data))) data[[field]] <- original[[field]]
+  if (!'.component' %in% names(data)) return(data)
+  apply_style <- function(component, style, overrides = list()) {
+    at <- which(data$.component %in% component)
+    if (!length(at)) return()
+    if (isTRUE(style$hidden)) {
+      data$label[at] <<- NA_character_
+      return()
+    }
+    style <- c(style[setdiff(names(style), c('hidden', names(overrides)))], overrides)
+    for (key in intersect(names(style), c('colour', 'alpha', 'size', 'family', 'fontface',
+        'lineheight', 'angle', 'hjust', 'vjust'))) if (length(style[[key]]) == 1L) {
+      if (!key %in% names(data)) data[[key]] <<- rep(NA, nrow(data))
+      data[[key]][at] <<- style[[key]]
+    }
+  }
+  if (inherits(layer$geom, 'GeomGgchordTrack')) {
+    p <- layer$geom_params
+    for (role in names(p$track_keys)) data[[role]] <- data[[p$track_keys[[role]]]]
+    overrides <- list(alpha = 1)
+    if (!is.null(p$axis_colour)) overrides$colour <- p$axis_colour
+    if (!is.null(p$axis_size)) overrides$size <- p$axis_size
+    apply_style('track_axis_text', p$axis_text_params, overrides)
+    apply_style('track_axis_title', p$axis_title_params, overrides)
+  } else if (inherits(layer$geom, 'GeomRestrictionSite')) {
+    apply_style('label', layer$geom_params$text_params)
+    data$.ggchord_composite_label <- rep(isTRUE(layer$geom_params$composite_labels), nrow(data))
+  } else if (inherits(layer$geom, 'GeomChordAxis') || inherits(layer$geom, 'GeomChordGeneLabelRepel')) {
+    style <- layer$geom_params$text_params
+    if (inherits(layer$geom, 'GeomChordGeneLabelRepel') && isTRUE(style$.ggchord_resolved_size)) style$size <- NULL
+    apply_style(c('text', 'arc_text'), style)
+  }
+  data
+}
+
+ggchord_diagnostic_text <- function(data, coordinate, panel, context, parse = FALSE, size_unit = 'mm') {
   if (!all(c("x", "y", "label", "size") %in% names(data))) return(data.frame())
   selected <- !is.na(data$label) & nzchar(as.character(data$label)) &
     is.finite(data$size) & data$size > 0
+  if ('alpha' %in% names(data)) selected <- selected & (is.na(data$alpha) | data$alpha > 0)
+  if ('colour' %in% names(data)) selected <- selected & vapply(data$colour, function(colour)
+    !is.na(colour) && grDevices::col2rgb(colour, alpha = TRUE)[4L] > 0, logical(1))
   if (".component" %in% names(data) && any(!is.na(data$.component))) selected <- selected &
-    data$.component %in% c("text", "label", "arc_text", "name", "length", "track_axis_text")
+    data$.component %in% c("text", "label", "arc_text", "name", "length", "track_axis_text", "track_axis_title", "track_text")
   if (all(c(".draw_as_arc", ".component") %in% names(data))) selected <- selected &
     !(data$.draw_as_arc %in% TRUE & data$.component %in% "text")
   data <- data[selected, , drop = FALSE]
   if (!nrow(data)) return(data.frame())
   xy <- coordinate$transform(data, panel)
+  justify <- utils::getFromNamespace('compute_just', 'ggplot2')
+  data$hjust <- justify(xy$hjust %||% .5, xy$x, xy$y, xy$angle %||% 0)
+  data$vjust <- justify(xy$vjust %||% .5, xy$y, xy$x, xy$angle %||% 0)
+  points_per_unit <- switch(size_unit, mm = 72.27/25.4, cm = 72.27/2.54,
+    'in' = 72.27, pt = 1, pc = 12, 72.27/25.4)
   result <- lapply(seq_len(nrow(data)), function(i) {
     value <- function(name, fallback) if (is.null(data[[name]])) fallback else data[[name]][i]
     label <- if (isTRUE(parse) || isTRUE(value("plotmath_label", FALSE))) {
       tryCatch(parse(text = as.character(data$label[i]))[[1L]], error = function(e) as.character(data$label[i]))
     } else data$label[i]
     grob <- grid::textGrob(label, gp = grid::gpar(
-      fontsize = data$size[i] * (72.27 / 25.4), fontfamily = value("family", ""),
+      fontsize = data$size[i] * points_per_unit, fontfamily = value("family", ""),
       fontface = value("fontface", 1), lineheight = value("lineheight", 1.2)))
     w <- grid::convertWidth(grid::grobWidth(grob), "mm", valueOnly = TRUE)
     h <- grid::convertHeight(grid::grobHeight(grob), "mm", valueOnly = TRUE)
-    angle <- value("angle", 0) * pi / 180
-    justify <- function(z, at) {
-      if (is.numeric(z) && is.finite(z)) return(z)
-      known <- c(left = 0, bottom = 0, centre = .5, center = .5, right = 1, top = 1)
-      if (as.character(z) %in% names(known)) return(unname(known[as.character(z)]))
-      if (identical(as.character(z), "inward")) return(if (at < .5) 0 else if (at > .5) 1 else .5)
-      if (identical(as.character(z), "outward")) return(if (at < .5) 1 else if (at > .5) 0 else .5)
-      .5
+    composite <- isTRUE(value('.ggchord_composite_label', FALSE)) &&
+      all(c('enzyme_label', 'coordinate_label', 'enzyme_fontface') %in% names(data))
+    if (composite) {
+      exact <- ggchord_site_label_metrics(value('enzyme_label', ''), value('coordinate_label', ''),
+        data$size[i], value('family', ''), value('enzyme_fontface', 'plain'),
+        value('lineheight', 1.2))
+      w <- exact$width; h <- exact$height
     }
-    hj <- justify(value("hjust", .5), xy$x[i]); vj <- justify(value("vjust", .5), xy$y[i])
+    angle <- value("angle", 0) * pi / 180
+    hj <- if (composite) .5 else value('hjust', .5); vj <- value('vjust', .5)
     cx <- xy$x[i] * context$panel_mm[["width"]] + context$panel_bounds_mm[["xmin"]] +
       (.5 - hj) * w * cos(angle) - (.5 - vj) * h * sin(angle)
     cy <- xy$y[i] * context$panel_mm[["height"]] + context$panel_bounds_mm[["ymin"]] +
@@ -70,8 +121,13 @@ ggchord_diagnostic_text <- function(data, coordinate, panel, context, parse = FA
     bw <- abs(cos(angle)) * w + abs(sin(angle)) * h
     bh <- abs(sin(angle)) * w + abs(cos(angle)) * h
     data.frame(source_row = value("source_row", NA_integer_), label = as.character(data$label[i]),
-      size_mm = as.numeric(data$size[i]), xmin_mm = cx - bw / 2, xmax_mm = cx + bw / 2,
-      ymin_mm = cy - bh / 2, ymax_mm = cy + bh / 2, stringsAsFactors = FALSE)
+      text_object = if (value('.component', '') %in% 'arc_text' || !is.na(value('.arc_glyph_index', NA_real_)))
+        paste0('arc-', value('.arc_parent_group', value('group', NA_real_)), '/', value('source_row', NA_integer_), '/',
+          value('display_instance_id', value('accver', ''))) else paste0('row-', i),
+      size_mm = as.numeric(data$size[i]) * points_per_unit / (72.27/25.4), xmin_mm = cx - bw / 2, xmax_mm = cx + bw / 2,
+      ymin_mm = cy - bh / 2, ymax_mm = cy + bh / 2,
+      centre_x_mm = cx, centre_y_mm = cy, width_mm = w, height_mm = h,
+      angle_radians = angle, stringsAsFactors = FALSE)
   })
   unique(do.call(rbind, result))
 }
@@ -156,8 +212,51 @@ ggchord_diagnostic_colours <- function(built, colour_vision) {
 #'   device warnings. Field units and provenance are described in
 #'   [ggchord_layout_contract]. `measurement$status` concerns panel measurement only;
 #'   it never means that all quality or portability checks passed.
+#' @section Label quality:
+#' `label_quality` reports summary counts, text-object conflicts, registered
+#' annotation polylines and measured oriented text boxes in millimetres. Its
+#' `measurement` entry separates panel measurement, geometry convergence and
+#' physical refinement passes. Circular calibration may try one extrapolated
+#' scale, accepting it only after the usual measured convergence gate passes;
+#' rejected trials retain the ordinary refinement sequence. Drawing warns when
+#' bounded physical refinement does not converge; diagnostics capture that
+#' warning and retain the `physical_layout` check. Arc
+#' glyphs belonging to one string are one text object; their intentional
+#' internal contacts are not label collisions. Leader crossings exclude shared
+#' endpoints; through-text checks concern box interiors, not exact glyph ink.
+#' Source-label visibility follows the layer policy and may share one displayed
+#' label across records. It is distinct from the number of text/glyph boxes.
+#' Registered gene/feature polygon envelopes are checked against text boxes;
+#' `feature_contacts` separates proven own-source placement, other-source
+#' contacts and unresolved associations. Transparent polygons remain in this
+#' conservative geometry check. Non-polygon strokes/markers and visibility or
+#' occlusion are not checked; `feature_parts_unchecked` records skipped parts.
+#' Unregistered/outer decorations remain unchecked. These measurements never
+#' move, hide or change input records.
+#' Degenerate annotation placeholders with coincident endpoints are not
+#' counted as leaders. Circular label visibility can additionally report
+#' `leader_text_status` for clear, detoured or unresolved static-text routes.
+#' `leader_route_status` records bounded crossing detours or unresolved routes
+#' while preserving directed endpoints and source-label positions.
+#' `axis_clearance` records available automatic circular label decisions and
+#' radial shifts in millimetres, positive outward and negative inward.
+#' Composite site labels use the same bold name and regular coordinate
+#' fragments, physical gap and text styles as the renderer.
 #' @md
 #' @export
+#' @section Guide measurements:
+#' `guide_measurements` records active roles, titles, item counts, device text
+#' widths/heights, requested key sizes, direction, grid and shared side budget.
+#' These complement actual guide-box measurements; requested key dimensions
+#' are not claimed as final grob bounds. Font fallback remains uninspected.
+#' With [adapt_ggchord()], `adaptive_layout` reports effective theme styles,
+#' selected default fixed geom line widths and scale factors. In adaptive mode,
+#' `guide_layout` reports the bounded joint
+#' search, selected guide grids/positions, explicit locks and measured guide-box
+#' bounds in mm. `feasible` concerns the guide canvas and reserved panel budget;
+#' it does not certify every label or custom grob. `insufficient_space` retains
+#' all categories and reports the failure instead of silently shrinking text.
+#'
 #' @examples
 #' library(dplyr)
 #' data(seq_data_example)
@@ -249,7 +348,9 @@ diagnose_ggchord <- function(plot, width = 7, height = 5,
       if (any(outside)) add("canvas_geometry_bounds", "warning",
         "Registered geometry vertices extend beyond the canvas", id)
     }
-    txt <- ggchord_diagnostic_text(data, coordinate, panel, context, parse = layer$geom_params$parse %||% FALSE)
+    styled <- ggchord_diagnostic_text_styles(data, layer)
+    txt <- ggchord_diagnostic_text(styled, coordinate, panel, context,
+      parse = layer$geom_params$parse %||% FALSE, size_unit = layer$geom_params$size.unit %||% 'mm')
     if (nrow(txt)) {
       txt$layer_id <- id; text[[length(text) + 1L]] <- txt
       for (row in which(txt$size_mm < min_size)) add("small_text", "suggestion",
@@ -267,6 +368,12 @@ diagnose_ggchord <- function(plot, width = 7, height = 5,
     }
   }
   guides <- ggchord_diagnostic_guides(table, canvas)
+  if (identical(layout$length_mode, "equal")) add("normalized_sequence_lengths", "information",
+    "Opt-in equal-length display; source lengths/positions are retained and no shared absolute scale is implied")
+  layer_sources <- ggchord_annotation_source_maps(layout)
+  annotation_duplicates <- ggchord_annotation_duplicate_sources(layer_sources)
+  if (nrow(annotation_duplicates)) add("duplicate_annotation_display", "suggestion",
+    "Constructor annotations appear in multiple geometry layers; use disjoint layer data if duplication is unintended")
   if (any(guides$exceeds_canvas %in% TRUE)) add("guide_size", "warning",
     "At least one guide is wider or taller than the target canvas")
   colours <- ggchord_diagnostic_colours(built, colour_vision)
@@ -279,11 +386,19 @@ diagnose_ggchord <- function(plot, width = 7, height = 5,
     if (!colour_vision) "Optional simulations were not requested" else
       if (!requireNamespace("colorspace", quietly = TRUE)) "Optional colorspace is unavailable" else
         "colorspace severity=1, linear RGB; Lab-distance hints do not guarantee readability")
+  text <- if (length(text)) do.call(rbind, text) else data.frame()
+  quality <- ggchord_label_quality(layout, text, built, context)
+  if (nrow(quality$conflicts)) add("label_geometry_contacts", "warning",
+    "Measured panel text/annotation leaders have contacts; inspect label_quality conflicts and scope")
   structure(list(measurement = context,
+    adaptive_layout = context$adaptive_layout, guide_layout = context$guide_layout,
     checks = unique(do.call(rbind, checks)),
-    text = if (length(text)) do.call(rbind, text) else data.frame(), guides = guides,
+    text = text, guides = guides, label_quality = quality,
+    guide_measurements=ggchord_measure_guides(built$plot,guides),
     colour_suggestions = colours, label_diagnostics = layout$collinear_label_diagnostics %||% data.frame(),
+    label_visibility = ggchord_label_visibility(layout),
     annotation_registry = layout$circular_annotation_registry %||% data.frame(),
+    layer_sources = layer_sources, annotation_duplicates = annotation_duplicates,
     track_registry = layout$track_registry %||% data.frame(),
     track_diagnostics = layout$track_diagnostics %||% data.frame(),
     warnings = unique(warnings)), class = "ggchord_diagnostics")

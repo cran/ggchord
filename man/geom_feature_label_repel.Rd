@@ -21,6 +21,9 @@ geom_feature_label_repel(
   label_segment_overlap = "fade",
   label_segment_overlap_alpha = 0.18,
   label_segment_linetype = "auto",
+  label_segment_layer = c("below", "above"),
+  label_repeat = c("individual", "bracket"),
+  label_segment_colour = "auto",
   ...
 )
 }
@@ -32,8 +35,9 @@ geom_feature_label_repel(
 text is tried inside first, then assigned to a fixed-radius internal
 track. All non-external text is laid out character by character along its
 selected track radius rather than rotated as one straight string. A light
-leader appears when one or more intervening tracks separate the feature
-and its label.
+leader appears when tracks separate the feature and its label or a
+visible angular displacement could obscure ownership. Circular feature
+layouts retain direct leaders instead of multi-bend detours.
 Choose another mode for unrestricted external callouts.}
 
 \item{label_wrap, label_fit, label_max_lines}{Text fitting controls.
@@ -87,6 +91,25 @@ that were moved to the other side of their arc, which are drawn dashed.
 Any other valid ggplot2 linetype (e.g. \code{"solid"}, \code{"dashed"},
 \code{"dotted"}, or a numeric dash pattern) is used for all leader lines.}
 
+\item{label_segment_layer}{Draw leaders \code{"below"} all data layers (default),
+or \code{"above"} at this label layer's normal position. Text always stays at
+this layer's position. Filled features can cover leaders drawn below;
+transparent features retain their normal transparency.}
+
+\item{label_repeat}{\code{"individual"} (default) keeps one label per feature.
+\code{"bracket"} shares a counted label and an arc bracket for consecutive,
+non-overlapping short features with the same name, type, direction and
+resolved fill in one circular feature band. Source rows and individual
+arrows remain separate. Only supported with \code{label_layout = "feature"}.}
+
+\item{label_segment_colour}{\code{"auto"} uses muted grey for leaders from
+a feature inside the sequence circle to a label outside it. Other leaders
+retain the theme colour. Explicit colours override both. A custom
+feature-label segment theme overrides the automatic palette.
+\code{label_segment_linetype = "auto"} uses dashed lines for those
+inside-to-outside attachments. Labels that stay inside retain their
+established leader style.}
+
 \item{...}{Additional text parameters.}
 }
 \value{
@@ -105,7 +128,10 @@ library(dplyr)
 data(plasmid_example_pUC19)
 seqs <- plasmid_example_pUC19 |>
   select(accver, length)
-feature_source <- find_common_features(plasmid_example_pUC19)
+# Restrict discovery to two named features on the real plasmid.
+feature_source <- find_common_features(
+  plasmid_example_pUC19, features = c("AmpR", "ori"), mode = "dna"
+)
 features <- feature_source |>
   slice_head(n = 4) |>
   select(accver, start, end, strand, type, anno)
@@ -115,6 +141,20 @@ features <- features |>
 ggchord(seq_data = seqs) +
   geom_seq() +
   geom_feature(data = features, position = position_plasmid()) +
-  geom_feature_label_repel(data = features, position = position_plasmid()) +
+  geom_feature_label_repel(data = features, position = position_plasmid(),
+    label_segment_layer = "below", label_segment_colour = "grey50") +
   coord_circular()
+\donttest{
+# A shared display label preserves all seven biological operator records.
+repeated <- find_common_features(plasmid_example_pTRE_Tight_BI)
+feature_position <- position_feature_stack(base_position = position_plasmid())
+ggchord(plasmid_example_pTRE_Tight_BI[c("accver", "length")],
+  feature_data = repeated) +
+  geom_seq(seq_style = "double") +
+  geom_feature_plasmid(position = feature_position) +
+  geom_feature_label_repel(position = feature_position,
+    label_repeat = "bracket", label_fit = "shrink", label_min_size = 2.5) +
+  coord_circular() +
+  theme_ggchord_plasmid()
+}
 }

@@ -11,7 +11,7 @@
 \alias{scale_link_color_gradientn}
 \alias{scale_link_alpha_continuous}
 \alias{scale_link_linewidth_continuous}
-\title{Scales for point links}
+\title{Scales for point links and alignment segments}
 \usage{
 scale_link_colour_manual(..., values)
 
@@ -41,4 +41,6 @@ A ggplot2 scale.
 }
 \description{
 Point-link aesthetics are independent of sequence and ribbon aesthetics.
+Automatically generated numeric pident mappings use the 0-100 domain and
+ticks 0/50/80/90/95/100. Explicit scales keep their own limits and breaks.
 }

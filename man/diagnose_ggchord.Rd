@@ -62,6 +62,54 @@ protan/deutan/tritan at severity 1 in linear RGB flag Lab distances below 10.
 These heuristic thresholds ignore spatial context, alpha compositing and
 viewing conditions, and never automatically change the plot or fail a run.
 }
+\section{Label quality}{
+
+\code{label_quality} reports summary counts, text-object conflicts, registered
+annotation polylines and measured oriented text boxes in millimetres. Its
+\code{measurement} entry separates panel measurement, geometry convergence and
+physical refinement passes. Circular calibration may try one extrapolated
+scale, accepting it only after the usual measured convergence gate passes;
+rejected trials retain the ordinary refinement sequence. Drawing warns when
+bounded physical refinement does not converge; diagnostics capture that
+warning and retain the \code{physical_layout} check. Arc
+glyphs belonging to one string are one text object; their intentional
+internal contacts are not label collisions. Leader crossings exclude shared
+endpoints; through-text checks concern box interiors, not exact glyph ink.
+Source-label visibility follows the layer policy and may share one displayed
+label across records. It is distinct from the number of text/glyph boxes.
+Registered gene/feature polygon envelopes are checked against text boxes;
+\code{feature_contacts} separates proven own-source placement, other-source
+contacts and unresolved associations. Transparent polygons remain in this
+conservative geometry check. Non-polygon strokes/markers and visibility or
+occlusion are not checked; \code{feature_parts_unchecked} records skipped parts.
+Unregistered/outer decorations remain unchecked. These measurements never
+move, hide or change input records.
+Degenerate annotation placeholders with coincident endpoints are not
+counted as leaders. Circular label visibility can additionally report
+\code{leader_text_status} for clear, detoured or unresolved static-text routes.
+\code{leader_route_status} records bounded crossing detours or unresolved routes
+while preserving directed endpoints and source-label positions.
+\code{axis_clearance} records available automatic circular label decisions and
+radial shifts in millimetres, positive outward and negative inward.
+Composite site labels use the same bold name and regular coordinate
+fragments, physical gap and text styles as the renderer.
+}
+
+\section{Guide measurements}{
+
+\code{guide_measurements} records active roles, titles, item counts, device text
+widths/heights, requested key sizes, direction, grid and shared side budget.
+These complement actual guide-box measurements; requested key dimensions
+are not claimed as final grob bounds. Font fallback remains uninspected.
+With \code{\link[=adapt_ggchord]{adapt_ggchord()}}, \code{adaptive_layout} reports effective theme styles,
+selected default fixed geom line widths and scale factors. In adaptive mode,
+\code{guide_layout} reports the bounded joint
+search, selected guide grids/positions, explicit locks and measured guide-box
+bounds in mm. \code{feasible} concerns the guide canvas and reserved panel budget;
+it does not certify every label or custom grob. \code{insufficient_space} retains
+all categories and reports the failure instead of silently shrinking text.
+}
+
 \examples{
 library(dplyr)
 data(seq_data_example)

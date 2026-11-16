@@ -1,0 +1,340 @@
+ggchord_route_inflate <- function(boxes, padding) {
+  for (name in intersect(c("xmin", "ymin"), names(boxes))) boxes[[name]] <- boxes[[name]]-padding
+  for (name in intersect(c("xmax", "ymax"), names(boxes))) boxes[[name]] <- boxes[[name]]+padding
+  boxes
+}
+
+# Deterministic physical routes. These adjust drawing, never source intervals.
+ggchord_route_segment_hits <- function(a, b, boxes, tolerance = 1e-7) {
+  if (!nrow(boxes)) return(logical())
+  enter <- rep(0, nrow(boxes)); leave <- rep(1, nrow(boxes))
+  for (axis in 1:2) {
+    lo <- boxes[[if (axis == 1L) 'xmin' else 'ymin']] + tolerance
+    hi <- boxes[[if (axis == 1L) 'xmax' else 'ymax']] - tolerance
+    delta <- b[axis] - a[axis]
+    if (abs(delta) < 1e-12) {
+      leave[a[axis] <= lo | a[axis] >= hi] <- -Inf
+    } else {
+      first <- (lo - a[axis])/delta; last <- (hi - a[axis])/delta
+      enter <- pmax(enter, pmin(first, last)); leave <- pmin(leave, pmax(first, last))
+    }
+  }
+  enter < leave & leave > 0 & enter < 1
+}
+
+ggchord_route_polygon_hits <- function(path, boxes) {
+  if (!nrow(boxes)) return(logical())
+  path <- as.matrix(path)
+  hits <- rep(FALSE, nrow(boxes))
+  for (i in seq_len(nrow(path))) hits <- hits | ggchord_route_segment_hits(
+    path[i, ], path[if (i == nrow(path)) 1L else i + 1L, ], boxes)
+  polygon <- data.frame(x = path[, 1], y = path[, 2])
+  hits | vapply(seq_len(nrow(boxes)), function(i) ggchord_point_in_polygon(
+    mean(c(boxes$xmin[i], boxes$xmax[i])), mean(c(boxes$ymin[i], boxes$ymax[i])), polygon), logical(1))
+}
+
+ggchord_route_obstacles <- function(obstacles, endpoints) {
+  # Endpoint containers must be entered; their measured text/guide boxes remain obstacles.
+  obstacles[!obstacles$kind %in% 'container' | !obstacles$panel_id %in% endpoints, , drop = FALSE]
+}
+
+# Same proper-interior test as annotation leaders, vectorized over barriers.
+ggchord_route_segment_crossings <- function(a, b, barriers, tolerance = 1e-9) {
+  if (is.null(barriers) || !nrow(barriers)) return(logical())
+  rx <- b[1]-a[1]; ry <- b[2]-a[2]
+  sx <- barriers$x2-barriers$x1; sy <- barriers$y2-barriers$y1
+  denominator <- rx*sy-ry*sx
+  valid <- is.finite(denominator) & abs(denominator) > tolerance
+  out <- rep(FALSE, nrow(barriers))
+  qx <- barriers$x1[valid]-a[1]; qy <- barriers$y1[valid]-a[2]
+  t <- (qx*sy[valid]-qy*sx[valid])/denominator[valid]
+  u <- (qx*ry-qy*rx)/denominator[valid]
+  out[valid] <- t > tolerance & t < 1-tolerance & u > tolerance & u < 1-tolerance
+  out
+}
+
+# Batch the existing strict rectangle/segment decisions for graph neighbours.
+ggchord_route_targets_blocked <- function(a, targets, boxes, barriers, tolerance = 1e-7) {
+  n <- nrow(targets)
+  if (!n) return(logical())
+  result <- rep(FALSE, n)
+  if (nrow(boxes)) {
+    enter <- matrix(0, n, nrow(boxes)); leave <- matrix(1, n, nrow(boxes))
+    for (axis in 1:2) {
+      lo <- boxes[[if (axis == 1L) 'xmin' else 'ymin']] + tolerance
+      hi <- boxes[[if (axis == 1L) 'xmax' else 'ymax']] - tolerance
+      delta <- targets[, axis]-a[axis]
+      moving <- abs(delta) >= 1e-12
+      if (any(moving)) {
+        first <- outer(rep(1, sum(moving)), lo-a[axis])/delta[moving]
+        last <- outer(rep(1, sum(moving)), hi-a[axis])/delta[moving]
+        enter[moving, ] <- pmax(enter[moving, , drop = FALSE], pmin(first, last))
+        leave[moving, ] <- pmin(leave[moving, , drop = FALSE], pmax(first, last))
+      }
+      outside <- a[axis] <= lo | a[axis] >= hi
+      if (any(!moving) && any(outside)) leave[!moving, outside] <- -Inf
+    }
+    result <- rowSums(enter < leave & leave > 0 & enter < 1) > 0
+  }
+  if (!is.null(barriers) && nrow(barriers)) {
+    rx <- targets[, 1]-a[1]; ry <- targets[, 2]-a[2]
+    sx <- barriers$x2-barriers$x1; sy <- barriers$y2-barriers$y1
+    denominator <- outer(rx, sy)-outer(ry, sx)
+    valid <- is.finite(denominator) & abs(denominator) > 1e-9
+    qx <- barriers$x1-a[1]; qy <- barriers$y1-a[2]
+    t <- matrix(rep(qx*sy-qy*sx, each = n), n)/denominator
+    u <- (outer(ry, qx)-outer(rx, qy))/denominator
+    result <- result | rowSums(valid & t > 1e-9 & t < 1-1e-9 & u > 1e-9 & u < 1-1e-9,
+      na.rm = TRUE) > 0
+  }
+  unname(result)
+}
+
+ggchord_route_shortest <- function(start, end, boxes, canvas, clearance = .6, barriers = NULL) {
+  if (any(c(start, end) < 0) || any(c(start[1], end[1]) > canvas[1]) ||
+      any(c(start[2], end[2]) > canvas[2])) return(NULL)
+  padded <- ggchord_route_inflate(boxes, clearance)
+  # Fixed endpoints inside a padded obstacle cannot reach an exterior route.
+  # Reject that case before constructing its visibility graph.
+  if (any(ggchord_route_segment_hits(start, start, padded)) ||
+      any(ggchord_route_segment_hits(end, end, padded))) return(NULL)
+  crosses <- function(a, b) {
+    any(ggchord_route_segment_crossings(a, b, barriers))
+  }
+  if (!any(ggchord_route_segment_hits(start, end, padded)) && !crosses(start, end)) return(rbind(start, end))
+  corners <- do.call(rbind, lapply(seq_len(nrow(padded)), function(i)
+    as.matrix(expand.grid(x = c(padded$xmin[i], padded$xmax[i]),
+      y = c(padded$ymin[i], padded$ymax[i])))))
+  if (!is.null(barriers) && nrow(barriers)) {
+    endpoints <- rbind(as.matrix(barriers[c('x1', 'y1')]), as.matrix(barriers[c('x2', 'y2')]))
+    near <- do.call(rbind, lapply(seq_len(nrow(endpoints)), function(i)
+      sweep(as.matrix(expand.grid(x = c(-1, 1)*clearance,
+        y = c(-1, 1)*clearance)), 2, endpoints[i, ], '+')))
+    corners <- rbind(corners, near)
+  }
+  corners <- corners[corners[, 1] >= clearance & corners[, 1] <= canvas[1] - clearance &
+    corners[, 2] >= clearance & corners[, 2] <= canvas[2] - clearance, , drop = FALSE]
+  nodes <- unique(rbind(start, end, corners))
+  distance <- rep(Inf, nrow(nodes)); distance[1L] <- 0
+  previous <- rep(NA_integer_, nrow(nodes)); visited <- rep(FALSE, nrow(nodes))
+  for (step in seq_len(nrow(nodes))) {
+    available <- which(!visited)
+    at <- available[which.min(distance[available])]
+    if (!is.finite(distance[at])) return(NULL)
+    if (at == 2L) break
+    visited[at] <- TRUE
+    to <- which(!visited)
+    costs <- sqrt(rowSums(sweep(nodes[to, , drop = FALSE], 2, nodes[at, ], '-')^2))
+    improved <- distance[at]+costs < distance[to]
+    to <- to[improved]; costs <- costs[improved]
+    if (length(to)) {
+      clear <- !ggchord_route_targets_blocked(nodes[at, ],
+        nodes[to, , drop = FALSE], padded, barriers)
+      distance[to[clear]] <- distance[at]+costs[clear]
+      previous[to[clear]] <- at
+    }
+  }
+  if (!is.finite(distance[2L])) return(NULL)
+  route <- 2L
+  while (route[1L] != 1L) route <- c(previous[route[1L]], route)
+  nodes[route, , drop = FALSE]
+}
+
+ggchord_route_ribbon <- function(q, s, direct, obstacles, canvas, route, width, corridor = NULL, tip = "none") {
+  visible <- function(path) ggchord_ribbon_visible_polygon(path, nrow(q), nrow(s), tip)
+  hits <- ggchord_route_polygon_hits(visible(direct), obstacles)
+  outside <- any(direct[, 1] < 0 | direct[, 1] > canvas[1] | direct[, 2] < 0 | direct[, 2] > canvas[2])
+  if (route == 'direct' || (route == 'avoid' && !any(hits) && !outside)) return(list(path = direct,
+    status = if (outside) 'direct_outside_canvas' else if (any(hits)) 'direct_collision' else 'direct_clear',
+    collisions = sum(hits)))
+  a <- as.matrix(q[c('x', 'y')]); b <- as.matrix(s[c('x', 'y')])
+  qc <- colMeans(a); sc <- colMeans(b)
+  normals <- attr(direct, 'endpoint_normals')
+  lead <- max(1, width)
+  start <- qc + normals['q', ]*lead*2; end <- sc + normals['s', ]*lead*2
+  if (sum((start-end)^2) < 1e-12)
+    ggchord_stop('Fusion: no distinct routing gates at these endpoint fronts')
+  for (padding in c(.6, 1.2, 2.4)) {
+    line <- corridor %||% ggchord_route_shortest(start, end, obstacles, canvas, clearance = width/2 + padding)
+    if (is.null(line)) next
+    if (nrow(line) == 2L) {
+      # A clear centreline can still have a wide colliding direct ribbon.
+      line <- rbind(start, start + (end-start)*.15, start + (end-start)*.85, end)
+    }
+    delta <- line[-1L, , drop = FALSE] - line[-nrow(line), , drop = FALSE]
+    normal <- cbind(-delta[, 2], delta[, 1])/sqrt(rowSums(delta^2))
+    midnormal <- rbind(normal[1L, ], (normal[-nrow(normal), , drop = FALSE] +
+      normal[-1L, , drop = FALSE])/2, normal[nrow(normal), ])
+    midnormal <- midnormal/pmax(sqrt(rowSums(midnormal^2)), .2)
+    if (sum(midnormal[1L, ]*(a[nrow(a), ]-a[1L, ])) < 0) midnormal <- -midnormal
+    edge1 <- line - midnormal*width/2; edge2 <- line + midnormal*width/2
+    # Short endpoint departures retain the original physical front normals.
+    edge1 <- rbind(a[1L, ], a[1L, ]+normals['q', ]*lead, edge1,
+      b[1L, ]+normals['s', ]*lead, b[1L, ])
+    edge2 <- rbind(a[nrow(a), ], a[nrow(a), ]+normals['q', ]*lead, edge2,
+      b[nrow(b), ]+normals['s', ]*lead, b[nrow(b), ])
+    path <- rbind(a, edge2, b[nrow(b):1L, , drop = FALSE], edge1[nrow(edge1):1L, , drop = FALSE])
+    if (any(path[, 1] < 0 | path[, 1] > canvas[1] | path[, 2] < 0 | path[, 2] > canvas[2])) next
+    if (any(ggchord_route_polygon_hits(visible(path), obstacles))) next
+    attr(path, 'endpoint_normals') <- attr(direct, 'endpoint_normals')
+    return(list(path = path, status = if (route == 'bundle') 'bundled_clear' else 'routed_clear',
+      collisions = 0L, corridor = line))
+  }
+  ggchord_stop('Fusion: no collision-free ribbon corridor preserves the complete interval fronts; move/enlarge panels, reduce the interval, or use route = "direct" and inspect diagnostics')
+}
+
+# Device metrics of final native layer text. Rectangles conservatively enclose
+# rotated glyphs; arc strings receive a larger envelope, not an exact-glyph claim.
+ggchord_fusion_text_obstacles <- function(panel, id) {
+  bounds <- panel$context$panel_bounds_mm
+  result <- list()
+  for (index in seq_along(panel$built$data)) {
+    layer <- panel$built$data[[index]]
+    if (!all(c('x', 'y', 'label', 'size') %in% names(layer))) next
+    if ('.component' %in% names(layer)) layer <- layer[layer$.component %in%
+      c('text', 'arc_text', 'track_axis_text', 'track_axis_title', 'label'), , drop = FALSE]
+    layer <- layer[!is.na(layer$label) & nzchar(as.character(layer$label)), , drop = FALSE]
+    if (!nrow(layer)) next
+    xy <- panel$built$layout$coord$transform(layer, panel$built$layout$panel_params[[1L]])
+    # Use the same installed ggplot2 resolver as GeomText for inward/outward
+    # justification; do not approximate it differently in composition space.
+    justify <- utils::getFromNamespace('compute_just', 'ggplot2')
+    if ('hjust' %in% names(xy)) layer$hjust <- justify(xy$hjust, xy$x, xy$y, xy$angle %||% 0)
+    if ('vjust' %in% names(xy)) layer$vjust <- justify(xy$vjust, xy$y, xy$x, xy$angle %||% 0)
+    for (i in seq_len(nrow(layer))) {
+      d <- layer[i, , drop = FALSE]
+      if ('alpha' %in% names(d) && !is.na(d$alpha) && d$alpha == 0) next
+      if ('colour' %in% names(d) && (is.na(d$colour) ||
+          grDevices::col2rgb(d$colour, alpha = TRUE)[4L] == 0)) next
+      scalar <- function(name, default) if (name %in% names(d)) d[[name]][[1L]] else default
+      geom <- panel$built$plot$layers[[index]]
+      points_per_unit <- switch(geom$geom_params$size.unit %||% 'mm',
+        mm = 72.27/25.4, cm = 72.27/2.54, 'in' = 72.27, pt = 1, pc = 12, 72.27/25.4)
+      label <- if (isTRUE(geom$geom_params$parse)) parse(text = as.character(d$label)) else d$label
+      glyph <- grid::textGrob(label, gp = grid::gpar(
+        fontsize = as.numeric(d$size)*points_per_unit, fontfamily = scalar('family', ''),
+        fontface = scalar('fontface', 'plain'), lineheight = scalar('lineheight', 1.2)))
+      w <- grid::convertWidth(grid::grobWidth(glyph), 'mm', TRUE)
+      h <- grid::convertHeight(grid::grobHeight(glyph), 'mm', TRUE)
+      if (inherits(geom$geom, 'GeomResidue')) {
+        corners <- d[rep(1L, 2L), , drop = FALSE]
+        corners$x <- d$x + c(-.46, .46); corners$y <- as.numeric(d$y) + c(-.4, .4)
+        corners <- panel$built$layout$coord$transform(corners, panel$built$layout$panel_params[[1L]])
+        if (abs(diff(corners$x))*diff(bounds[1:2]) < w*1.15 ||
+            abs(diff(corners$y))*diff(bounds[3:4]) < h*1.15) next
+      }
+      if (inherits(geom$geom, 'GeomLabel')) {
+        padding <- geom$geom_params$label.padding %||% grid::unit(.25, 'lines')
+        grid::pushViewport(grid::viewport(gp = grid::gpar(fontsize = as.numeric(d$size)*points_per_unit)))
+        pad <- grid::convertUnit(padding, 'mm', valueOnly = TRUE)
+        grid::popViewport()
+        w <- w + 2*pad; h <- h + 2*pad
+      }
+      angle <- scalar('angle', 0)*pi/180
+      x <- c(-scalar('hjust', .5), 1-scalar('hjust', .5))*w
+      y <- c(-scalar('vjust', .5), 1-scalar('vjust', .5))*h
+      corners <- as.matrix(expand.grid(x = x, y = y)) %*%
+        matrix(c(cos(angle), sin(angle), -sin(angle), cos(angle)), 2, 2, byrow = TRUE)
+      arc <- isTRUE(scalar('.draw_as_arc', FALSE)) || identical(scalar('.component', ''), 'arc_text')
+      if (arc) corners <- rbind(c(-w-h, -w-h), c(w+h, w+h))
+      center <- c(bounds[1]+xy$x[i]*diff(bounds[1:2]), bounds[3]+xy$y[i]*diff(bounds[3:4]))
+      if (any(!is.finite(c(center, corners)))) next
+      result[[length(result)+1L]] <- data.frame(panel_id = id, kind = 'text',
+        xmin = center[1]+min(corners[, 1]), xmax = center[1]+max(corners[, 1]),
+        ymin = center[2]+min(corners[, 2]), ymax = center[2]+max(corners[, 2]),
+        measurement = if (arc) 'conservative_arc_envelope' else 'device_text_envelope')
+    }
+  }
+  ggchord_rbind_fill(result) %||% data.frame()
+}
+
+# Resolve guide-cell bounds through the same gtable layout as the final panel.
+ggchord_fusion_guide_obstacles <- function(table, id, origin) {
+  at <- which(grepl('^(guide-box|title$|subtitle$|caption$|tag$|xlab|ylab|axis-)', table$layout$name) &
+    !vapply(table$grobs, inherits, logical(1), 'zeroGrob'))
+  if (!length(at)) return(data.frame())
+  grid::pushViewport(grid::viewport(layout = grid::grid.layout(
+    length(table$heights), length(table$widths), widths = table$widths,
+    heights = table$heights, respect = table$respect)))
+  on.exit(grid::popViewport())
+  boxes <- ggchord_rbind_fill(lapply(at, function(i) {
+    entry <- table$layout[i, ]
+    grid::pushViewport(grid::viewport(layout.pos.row = seq.int(entry$t, entry$b),
+      layout.pos.col = seq.int(entry$l, entry$r)))
+    on.exit(grid::popViewport())
+    lo <- grid::deviceLoc(grid::unit(0, 'npc'), grid::unit(0, 'npc'), valueOnly = TRUE)
+    hi <- grid::deviceLoc(grid::unit(1, 'npc'), grid::unit(1, 'npc'), valueOnly = TRUE)
+    measurement <- 'resolved_gtable_cell'
+    grob <- table$grobs[[i]]
+    if (entry$name %in% c('title','subtitle','caption','tag') &&
+        inherits(grob,'titleGrob') && length(grob$children)==1L &&
+        inherits(grob$children[[1L]],'text')) {
+      # A native heading cell includes unused horizontal space. Route around
+      # the actual glyphs, preserving their margins, justification and font.
+      text <- grob$children[[1L]]
+      lo <- grid::deviceLoc(grid::grobX(text,180),grid::grobY(text,270),valueOnly=TRUE)
+      hi <- grid::deviceLoc(grid::grobX(text,0),grid::grobY(text,90),valueOnly=TRUE)
+      measurement <- 'native_heading_glyphs'
+    }
+    data.frame(panel_id = id, kind = if (grepl('^guide-box', entry$name)) 'guide' else
+      if (grepl('^(axis-|xlab|ylab)', entry$name)) 'axis' else 'decoration', xmin = lo$x*25.4-origin[1],
+      xmax = hi$x*25.4-origin[1], ymin = lo$y*25.4-origin[2], ymax = hi$y*25.4-origin[2],
+      measurement = measurement)
+  }))
+  # Empty native axis/title cells can contain non-zeroGrob wrappers while
+  # occupying no area. They are not furniture obstacles: treating their
+  # centre as an enclosed box falsely blocks even a clear interval ribbon.
+  boxes[is.finite(boxes$xmin) & is.finite(boxes$xmax) &
+    is.finite(boxes$ymin) & is.finite(boxes$ymax) &
+    boxes$xmax - boxes$xmin > 1e-7 & boxes$ymax - boxes$ymin > 1e-7, , drop = FALSE]
+}
+
+# Recheck final assembled physical envelopes, including ancestor decoration.
+ggchord_fusion_recheck_routes <- function(export, obstacles) {
+  # A parent can add overlapping leaves after a child was measured. Recheck
+  # child geometry in the complete enclosing canvas rather than exporting a
+  # stale clear claim. Exact routes fail explicitly if the parent blocks them.
+  for (i in seq_len(nrow(export$connections))) {
+    connection <- export$connections[i, , drop = FALSE]
+    if (!isTRUE(connection$retained)) next
+    path <- export$paths[export$paths$layer_id == connection$layer_id &
+      export$paths$source_row == connection$source_row, c("x", "y"), drop = FALSE]
+    relevant <- ggchord_route_inflate(ggchord_route_obstacles(obstacles, c(connection$qpanel, connection$spanel)), connection$route_stroke_mm)
+    qn <- sum(export$fronts$layer_id == connection$layer_id & export$fronts$source_row == connection$source_row & export$fronts$endpoint == "q")
+    sn <- sum(export$fronts$layer_id == connection$layer_id & export$fronts$source_row == connection$source_row & export$fronts$endpoint == "s")
+    polygon <- ggchord_ribbon_visible_polygon(as.matrix(path), qn, sn, connection$tip)
+    collisions <- sum(ggchord_route_polygon_hits(polygon, relevant))
+    if (collisions && connection$route %in% c("avoid", "bundle"))
+      ggchord_stop("Fusion: enclosing layout obstructs a measured route in ", connection$layer_id,
+        "; move the overlapping parent panels or use route = 'direct' with explicit diagnostics")
+    export$connections$obstacle_collisions[i] <- collisions
+    if (collisions) export$connections$route_status[i] <- "direct_collision"
+  }
+  for (i in seq_len(nrow(export$leaders))) {
+    leader <- export$leaders[i, , drop = FALSE]
+    selected <- export$focus_regions$composition_id == leader$composition_id &
+      export$focus_regions$region_row == leader$region_row & export$focus_regions$region_piece == leader$region_piece
+    region <- export$focus_regions[selected, , drop = FALSE]
+    selected <- export$leader_paths$composition_id == leader$composition_id &
+      export$leader_paths$region_row == leader$region_row & export$leader_paths$region_piece == leader$region_piece &
+      export$leader_paths$boundary == leader$boundary
+    line <- as.matrix(export$leader_paths[selected, c("x", "y"), drop = FALSE])
+    relevant <- ggchord_route_inflate(ggchord_route_obstacles(obstacles, c(region$source_panel, region$detail_panel)), region$leader_linewidth/2)
+    hits <- rep(FALSE, nrow(relevant))
+    for (j in seq_len(nrow(line)-1L)) hits <- hits | ggchord_route_segment_hits(line[j, ], line[j+1L, ], relevant)
+    if (any(hits) && leader$route == "avoid")
+      ggchord_stop("Fusion: enclosing layout obstructs a focus leader; move the overlapping panels or inspect route = 'direct'")
+    export$leaders$obstacle_collisions[i] <- sum(hits)
+    if (any(hits)) export$leaders$route_status[i] <- "direct_collision"
+  }
+  for (i in seq_len(nrow(export$focus_regions))) {
+    region <- export$focus_regions[i, , drop = FALSE]
+    group <- if (identical(region$connector,"envelope")) region$leader_group else region$region_row
+    selected <- export$leaders$composition_id == region$composition_id &
+      export$leaders$region_row == group &
+      (export$leaders$region_piece == region$region_piece | region$connector == "envelope")
+    states <- export$leaders$route_status[selected]
+    export$focus_regions$collision_status[i] <- if (length(states)) paste(unique(states), collapse = ";") else "no_leaders"
+  }
+  export
+}

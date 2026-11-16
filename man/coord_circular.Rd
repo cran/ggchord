@@ -17,7 +17,9 @@ coord_circular(
 )
 }
 \arguments{
-\item{rotation}{Angle in degrees at which the genomic origin is placed.}
+\item{rotation}{Counterclockwise rotation in degrees from a 12-o'clock
+genomic origin. The default 0 keeps the origin at 12 o'clock; 90 places
+it at 9 o'clock, and -90 at 3 o'clock.}
 
 \item{direction}{Direction of increasing genomic coordinates.}
 

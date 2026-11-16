@@ -10,7 +10,8 @@ focus_ggchord_data(
   gene_data = NULL,
   loci,
   expand = 0,
-  boundary = c("trim", "drop")
+  boundary = c("trim", "drop"),
+  feature_data = NULL
 )
 }
 \arguments{
@@ -28,6 +29,8 @@ one value per locus.}
 
 \item{boundary}{Boundary policy. \code{"trim"} clips partially overlapping genes
 and alignments; \code{"drop"} keeps only rows fully contained in selected loci.}
+
+\item{feature_data}{Unified annotation input; mutually exclusive with gene_data.}
 }
 \value{
 A list of focused \code{seq_data}, \code{ribbon_data}, \code{gene_data}, normalized
@@ -43,6 +46,9 @@ control their output sequence IDs.
 Segmented annotations, cleavage positions and cached feature runs are
 cropped and relocated together. Source intervals, source origins and
 genomic left/right truncation flags are retained on the returned tables.
+An optional \code{sequence} column must contain non-missing strings matching
+each input length. It is cropped with integer locus boundaries, preserving
+character order and case; focusing does not reverse-complement strings.
 Alignment cropping is a linear display projection, not a new alignment:
 identity is retained, and a scaled alignment length is marked as estimated.
 }

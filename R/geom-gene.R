@@ -24,7 +24,9 @@ gene_geom <- ggplot2::ggproto(
 #' separate internal aesthetic used by the ribbon layer.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
-#' @param data Default NULL (retrieved automatically from the layout)
+#' @param data Optional layer table or function, overriding constructor data.
+#'   With unified `feature_data`, the default selects explicitly classified
+#'   gene/CDS records; see [ggchord()]. Legacy `gene_data` retains all rows.
 #' @param width Optional numeric/vector/list. Width of gene arrows, default 0.05
 #' @param arrow_head_length,arrow_head_width Shared arrow-head dimensions in
 #'   the sequence-local frame.
@@ -108,6 +110,8 @@ geom_gene <- function(mapping = NULL, data = NULL,
   layer$ggchord_params$is_feature <- FALSE
   layer$ggchord_params$feature_role <- "gene"
   layer$ggchord_params$gene_color_scheme <- if (mapped) "manual" else "strand"
+  # Recognized features can carry annotation colours, keyed by name.
+  if (!mapped) layer$ggchord_params$gene_colors <- NULL
   layer$ggchord_input_transform <- NULL
   ggchord_capture_layer_input(layer, data, mapping,
     c("accver", "start", "end", "strand", "anno"))
@@ -126,12 +130,13 @@ geom_gene <- function(mapping = NULL, data = NULL,
 #' This is the deterministic, fixed-position label layer. By default labels
 #' sit outside their sequence and labels that would collide are omitted in
 #' input-row order. Use \code{label_overlap = "nudge"} to retain the
-#' legacy gentle adjustment, or \code{"allow"} to draw every label at its
+#' small position adjustment, or \code{"allow"} to draw every label at its
 #' requested position. For automatic arrangement with leader lines, use
 #' \code{\link{geom_gene_label_repel}()} instead.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
-#' @param data Default NULL (retrieved automatically from the layout)
+#' @param data Optional layer table or function. Default data follows the
+#'   gene/CDS selection described in [ggchord()].
 #' @param label_orientation Character, default \code{"horizontal"}. Text
 #'   orientation relative to each sequence path: \code{"radial"},
 #'   \code{"tangent"}, or \code{"horizontal"}.
@@ -140,7 +145,7 @@ geom_gene <- function(mapping = NULL, data = NULL,
 #'   \code{"inside"} placement.
 #' @param label_overlap Character, default \code{"hide"}. Fixed-label
 #'   collision policy: omit later conflicting labels (\code{"hide"}), apply
-#'   the legacy gentle adjustment (\code{"nudge"}), or keep all requested
+#'   the small position adjustment (\code{"nudge"}), or keep all requested
 #'   positions (\code{"allow"}). Input row order therefore provides a simple
 #'   way to prioritize labels in \code{"hide"} mode.
 #' @param label_rotation Optional numeric/vector/list. Label rotation angle, default 0
@@ -176,6 +181,7 @@ geom_gene <- function(mapping = NULL, data = NULL,
 #'   select(accver, length)
 #' data(gene_data_example)
 #' genes <- gene_data_example |>
+#'   slice_head(n = 3) |>
 #'   transmute(accver, start, end, strand = source_strand, anno)
 #' ggchord(seq_data = seqs, gene_data = genes) +
 #'   geom_seq() +
@@ -287,20 +293,14 @@ ggchord_label_layer <- function(mapping = NULL, data = NULL,
 #' \code{"auto"} aligns left/right names in columns and uses radial placement
 #' elsewhere. \code{"arc"} rotates text along the sequence tangent.
 #'
-#' The local outside/inside label organisation adapts concepts used by
-#' SnapGene and Geneious. ggchord keeps generic mode names and integrates those
-#' ideas into its own geometry system. See
-#' \href{https://support.snapgene.com/hc/en-us/articles/10383722725524-Display-Feature-Labels-Below-or-Inside-a-Map}{SnapGene feature labels}
-#' and
-#' \href{https://manual.geneious.com/en/latest/Sequences.html}{Geneious label options}.
-#'
 #' Low-level force, padding, orientation and segment arguments used by earlier
 #' releases have been removed and now produce an error. Use
 #' \code{label_layout} for automatic placement, or
 #' \code{\link{geom_gene_label}()} for manual rotation and offsets.
 #'
 #' @param mapping Default NULL (uses pre-computed data)
-#' @param data Default NULL (retrieved automatically from the layout)
+#' @param data Optional layer table or function. Default data follows the
+#'   gene/CDS selection described in [ggchord()].
 #' @param label_layout Character, default \code{"radial"}. Label layout:
 #'   \code{"radial"} arranges horizontal external labels along sequence-relative
 #'   contours, with straight normal leaders or a short normal departure followed
@@ -495,7 +495,9 @@ ggchord_label_repel_layer <- function(mapping = NULL, data = NULL,
   empty <- data.frame(
     x = numeric(), y = numeric(), xend = numeric(), yend = numeric(),
     label = character(), .component = character(), group = integer(),
-    .draw_as_arc = logical(),
+    .draw_as_arc = logical(), .feature_internal_exit = logical(),
+    feature_label_mode = character(), feature_label_fill = character(),
+    feature_label_colour = character(),
     linetype = character(), alpha = numeric(), size = numeric(), angle = numeric(),
     hjust = numeric(), vjust = numeric()
   )

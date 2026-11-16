@@ -19,6 +19,7 @@ geom_seq(
   position = "identity",
   show.legend = TRUE,
   inherit.aes = FALSE,
+  length_mode = c("proportional", "equal"),
   ...
 )
 }
@@ -27,12 +28,15 @@ geom_seq(
 
 \item{data}{Default NULL (retrieved automatically from the layout)}
 
-\item{seq_order}{Optional character vector. Specifies the drawing order of sequences}
+\item{seq_order}{Source IDs in display order. Repeats create display instances;
+use names such as c(A_high='A', B='B', A_low='A') for stable instance IDs.
+Repeated-entity HSPs require a unique between route on each link layer.}
 
 \item{seq_orientation}{Optional numeric (1 or -1). Sequence orientation, default 1}
 
 \item{seq_gap}{Optional numeric. Gap proportion between sequences, default
-0.03 in chord coordinates. In \code{\link[=coord_collinear]{coord_collinear()}}, a positive distance
+0.03 in chord coordinates. A named vector can set the gap after each
+sequence; omitted IDs use the coordinate default. In \code{\link[=coord_collinear]{coord_collinear()}}, a positive distance
 between consecutive backbones as a proportion of the longest backbone's
 width, default 0.3. The final sequence's gap is unused in linear layouts.
 Segmented linear displays measure it against the longest display row;
@@ -44,7 +48,7 @@ affect vertical placement.}
 \item{seq_curvature}{Optional numeric. Signed arc bow (0=straight, 1=standard arc, negative=opposite bow), default 1.0. Finite positive and negative values are accepted without clipping; magnitudes above 1 amplify the bow.}
 
 \item{seq_style}{Backbone geometry. \code{"auto"} uses a double backbone in
-\code{\link[=coord_circular]{coord_circular()}} and the historical single backbone in \code{\link[=coord_chord]{coord_chord()}}.}
+\code{\link[=coord_circular]{coord_circular()}} and a single backbone in \code{\link[=coord_chord]{coord_chord()}}.}
 
 \item{seq_backbone_gap}{Gap between double backbone lines.}
 
@@ -53,6 +57,11 @@ affect vertical placement.}
 \item{linewidth}{Arc line width, default 0.9}
 
 \item{position, show.legend, inherit.aes}{Standard ggplot2 layer arguments.}
+
+\item{length_mode}{\code{"proportional"} (default) retains source-length ratios;
+\code{"equal"} gives each displayed sequence the same angular allocation or
+linear span without modifying source lengths. Shared absolute scale bars
+are unavailable in multi-sequence equal mode; local axes retain source units.}
 
 \item{...}{Additional fixed path aesthetics. \code{colour} (or \code{color}) sets
 \code{seq_colour}. Explicit fixed values take precedence over matching mappings;
